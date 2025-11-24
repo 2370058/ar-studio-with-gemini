@@ -1,0 +1,7 @@
+{
+  "name": "Gemini AR Studio",
+  "description": "A WebXR application allowing users to place 3D OBJ/FBX objects onto the real world using floor recognition.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

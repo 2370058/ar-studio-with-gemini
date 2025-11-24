@@ -3,7 +3,7 @@ import { Camera, Box, Upload, X, Trash2, ArrowRight } from 'lucide-react';
 import { UploadedModel } from '../types';
 
 interface UIOverlayProps {
-  isPlaying: boolean;
+  isAR: boolean;
   onEnterAR: () => void;
   onCapture: () => void;
   onReset: () => void;
@@ -15,7 +15,7 @@ interface UIOverlayProps {
 }
 
 const UIOverlay: React.FC<UIOverlayProps> = ({
-  isPlaying,
+  isAR,
   onEnterAR,
   onCapture,
   onReset,
@@ -36,7 +36,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  if (!isPlaying) {
+  if (!isAR) {
     return (
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-black text-white p-6">
         <div className="max-w-md w-full text-center space-y-8">
@@ -62,14 +62,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             className="w-full group relative flex items-center justify-center gap-3 bg-white text-black py-4 px-8 rounded-full font-bold text-lg hover:scale-105 transition-all duration-200 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
           >
             <Camera className="w-6 h-6" />
-            <span>Launch App</span>
+            <span>Launch AR Camera</span>
             <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity absolute right-6" />
           </button>
           
-          <div className="text-xs text-gray-500 mt-4 space-y-1">
-            <p>Best experience: Chrome on Android</p>
-            <p>PC/iOS: Starts in 3D Simulation Mode</p>
-          </div>
+          <p className="text-xs text-gray-500 mt-4">
+            Requires an AR-compatible device (Android Chrome or iOS with WebXR Viewer).
+          </p>
         </div>
       </div>
     );
@@ -91,10 +90,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
         </button>
       </div>
 
-      {/* Center Reticle Hint - Only show if NOT active model or specialized hint needed */}
+      {/* Center Reticle Hint */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-        {/* Simple crosshair for desktop/simulation mode, circle for AR is handled by Reticle component visually */}
-        <div className="w-2 h-2 bg-white/50 rounded-full"></div>
+        <div className="w-8 h-8 border-2 border-white/30 rounded-full flex items-center justify-center">
+          <div className="w-1 h-1 bg-white rounded-full"></div>
+        </div>
       </div>
 
       {/* Bottom Controls */}
@@ -154,7 +154,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           </button>
           
           <div className="absolute right-6 bottom-8 text-xs text-white/50 max-w-[100px] text-right pointer-events-none">
-            Tap screen/grid to place object
+            Tap screen to place object
           </div>
         </div>
       </div>

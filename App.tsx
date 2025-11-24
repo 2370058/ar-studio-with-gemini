@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { XR, createXRStore } from '@react-three/xr';
-import { OrbitControls, Plane } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -16,7 +15,6 @@ const store = createXRStore();
 
 function App() {
   const [isAR, setIsAR] = useState(false);
-  const [isSimulation, setIsSimulation] = useState(false);
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [uploadedModels, setUploadedModels] = useState<UploadedModel[]>([]);
   const [activeModel, setActiveModel] = useState<UploadedModel>({ name: 'Cube', url: '', type: 'primitive' });
@@ -26,25 +24,22 @@ function App() {
   useEffect(() => {
     const unsub = store.subscribe((state) => {
       setIsAR(!!state.session);
-      // If session ends, we might want to stay in app or go back to menu. 
-      // For now, if AR ends and we weren't in sim, it goes back to menu (isAR=false, isSimulation=false).
     });
     return () => unsub();
   }, []);
 
-  // Handler for entering AR or Simulation
+  // Handler for entering AR
   const handleEnterAR = useCallback(async () => {
     // Check if WebXR is supported
-    const isXRSupported = navigator.xr && await navigator.xr.isSessionSupported('immersive-ar');
-    
-    if (!isXRSupported) {
-      // Fallback to simulation mode for PC/non-supported devices
-      setIsSimulation(true);
-      setStatus("3D Simulation Mode");
+    if (!navigator.xr) {
+      setStatus("WebXR not supported on this device");
       return;
     }
 
-    // Config for AR
+    // Config: 
+    // - local-floor: Standard for AR.
+    // - dom-overlay: Required for UI buttons to be visible on mobile.
+    // - hit-test: Optional to prevent session rejection on devices with partial support.
     const sessionInit = {
       requiredFeatures: ['local-floor', 'dom-overlay'],
       optionalFeatures: ['hit-test'],
@@ -56,9 +51,7 @@ function App() {
       await (store.enterAR as any)('immersive-ar', sessionInit);
     } catch (e: any) {
       console.error("Failed to start AR session:", e);
-      // Fallback to simulation if AR launch fails (e.g. user denied permission)
-      setIsSimulation(true);
-      setStatus("AR Failed - Switched to Simulation");
+      setStatus("AR Error: " + (e.message || "Config not supported"));
     }
   }, []);
 
@@ -81,7 +74,7 @@ function App() {
     setActiveModel(newModel);
   }, []);
 
-  // Handler for placing objects
+  // Handler for placing objects in AR
   const handlePlaceObject = useCallback((position: Vector3) => {
     const newObject: PlacedObject = {
       id: uuidv4(),
@@ -89,7 +82,7 @@ function App() {
       url: activeModel.url,
       position: position,
       rotation: Math.random() * Math.PI * 2, // Random rotation for variety
-      scale: 1, // Default scale
+      scale: 1, // Default scale, could be adjustable
       name: activeModel.name
     };
 
@@ -100,6 +93,8 @@ function App() {
   const handleCapture = useCallback(() => {
     const canvas = document.querySelector('canvas');
     if (canvas) {
+      // In WebXR, sometimes the camera feed isn't in the canvas due to privacy.
+      // We try to grab the WebGL context.
       try {
         const dataURL = canvas.toDataURL('image/png');
         const link = document.createElement('a');
@@ -107,27 +102,25 @@ function App() {
         link.href = dataURL;
         link.click();
         setStatus('Photo saved!');
-        setTimeout(() => setStatus(isSimulation ? '3D Simulation Mode' : 'Scanning...'), 2000);
+        setTimeout(() => setStatus('Scanning...'), 2000);
       } catch (e) {
         console.error(e);
-        setStatus('Capture failed.');
+        setStatus('Capture failed. Use system screenshot.');
       }
     }
-  }, [isSimulation]);
+  }, []);
 
   const resetScene = () => {
     setPlacedObjects([]);
     setStatus('Scene cleared');
-    setTimeout(() => setStatus(isSimulation ? '3D Simulation Mode' : 'Scanning...'), 2000);
+    setTimeout(() => setStatus('Scanning...'), 2000);
   };
-  
-  // Determine if we are in a "playing" state (AR or Sim)
-  const isPlaying = isAR || isSimulation;
 
   return (
     <>
+      {/* Non-AR HTML Overlay */}
       <UIOverlay
-        isPlaying={isPlaying}
+        isAR={isAR}
         onEnterAR={handleEnterAR}
         onCapture={handleCapture}
         onReset={resetScene}
@@ -143,30 +136,12 @@ function App() {
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
           
-          {/* AR Mode: Reticle handles hit test */}
+          {/* The Reticle handles the Hit Test logic inside the XR session */}
           {isAR && (
              <Reticle 
                active={isAR} 
                onPlace={handlePlaceObject} 
              />
-          )}
-
-          {/* Simulation Mode: OrbitControls and Grid */}
-          {isSimulation && (
-            <>
-              <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 - 0.1} />
-              <gridHelper args={[20, 20, 0x666666, 0x444444]} />
-              {/* Invisible plane to catch clicks for placement */}
-              <Plane 
-                args={[100, 100]} 
-                rotation={[-Math.PI / 2, 0, 0]} 
-                visible={false}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlaceObject(e.point);
-                }}
-              />
-            </>
           )}
 
           {/* Render all placed objects */}

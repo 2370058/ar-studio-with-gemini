@@ -10,20 +10,23 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0"></script>
   
   <style>
+    /* === 基本設定 === */
     * { 
       margin: 0; 
       padding: 0; 
       box-sizing: border-box; 
       -webkit-user-select: none;
       user-select: none; 
+      -webkit-tap-highlight-color: transparent;
     }
     
     body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       overflow: hidden; 
       background: #000; 
       height: 100vh; 
       width: 100vw; 
+      color: white;
     }
     
     #container {
@@ -36,7 +39,6 @@
     }
     
     /* === 各ステップの画面 === */
-    
     .screen {
       position: absolute;
       top: 0;
@@ -44,20 +46,17 @@
       width: 100%;
       height: 100%;
       display: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
     }
     
     .screen.active {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      display: block;
+      opacity: 1;
     }
     
-    /* Step 1: 背景調整画面 */
-    #step1Screen {
-      background: #000;
-    }
-    
+    /* Step 1: 背景調整 */
+    #step1Screen { background: #111; }
     #backgroundCanvas {
       width: 100%;
       height: 100%;
@@ -65,156 +64,220 @@
       touch-action: none;
     }
     
-    /* Step 2: AR撮影画面 */
-    #step2Screen model-viewer {
+    /* Step 2: AR撮影 */
+    #step2Screen { background: #1a1a1a; }
+    model-viewer {
       width: 100%;
       height: 100%;
-      --poster-color: transparent;
+      --poster-color: #1a1a1a;
+      background-color: #1a1a1a;
     }
     
-    /* Step 3: 合成結果画面 */
+    /* Step 3: 合成結果 */
     #step3Screen {
       background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    
     #resultCanvas {
-      width: 100%;
-      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
       object-fit: contain;
     }
     
-    /* === UI要素 === */
+    /* === UIパーツ === */
     
-    .ui-overlay {
+    /* 上部ガイドメッセージ */
+    .top-info {
       position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      z-index: 1000;
-      padding: 20px;
-      background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      background: rgba(20, 20, 20, 0.8);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 14px;
+      text-align: center;
+      width: 90%;
+      max-width: 400px;
+      line-height: 1.4;
+      pointer-events: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    
+    /* 下部操作エリア */
+    .bottom-controls {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
+      gap: 15px;
+      width: 90%;
+      max-width: 400px;
     }
     
-    .info-box {
-      background: rgba(0, 0, 0, 0.85);
-      color: white;
-      padding: 12px 20px;
-      border-radius: 20px;
-      font-size: 14px;
-      text-align: center;
-      max-width: 90%;
-      line-height: 1.5;
-    }
-    
+    /* ボタン共通スタイル */
     .btn {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
       border: none;
-      padding: 14px 32px;
-      border-radius: 30px;
+      padding: 16px 24px;
+      border-radius: 16px;
       font-weight: 700;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       font-size: 16px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: transform 0.1s, opacity 0.2s;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
     
-    .btn:active { 
-      transform: scale(0.95); 
+    .btn:active { transform: scale(0.96); }
+    
+    /* プライマリボタン（強調・決定） */
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
     }
     
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    /* セカンダリボタン（キャンセル・戻る） */
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
     }
     
     .btn-group {
       display: flex;
       gap: 12px;
+      width: 100%;
     }
     
+    .btn-group .btn {
+      flex: 1;
+    }
+    
+    /* AR起動ボタン（model-viewer用） */
+    .ar-launch-btn {
+      position: absolute !important;
+      bottom: 180px !important; /* 中央から少し下へ移動 */
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      background: white !important;
+      color: #333 !important;
+      border: none !important;
+      padding: 12px 24px !important;
+      border-radius: 30px !important;
+      font-weight: 600 !important;
+      font-size: 15px !important;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+    
+    .ar-launch-btn::before {
+      content: "📱";
+      font-size: 18px;
+    }
+    
+    /* プレースホルダーメッセージ */
+    .placeholder-message {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: rgba(255, 255, 255, 0.6);
+      text-align: center;
+      font-size: 15px;
+      line-height: 1.8;
+      width: 80%;
+      pointer-events: none;
+    }
+    
+    /* ローディング表示 */
     #loading {
       position: absolute;
       top: 50%; 
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0,0,0,0.95); 
+      background: rgba(20, 20, 20, 0.9); 
+      backdrop-filter: blur(10px);
       color: white;
-      padding: 30px 40px; 
-      border-radius: 15px; 
+      padding: 30px; 
+      border-radius: 20px; 
       z-index: 2000;
       text-align: center;
+      min-width: 200px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
     
     .spinner {
-      border: 3px solid rgba(255,255,255,0.3);
-      border-top: 3px solid white;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top: 3px solid #764ba2;
       border-radius: 50%;
-      width: 40px;
-      height: 40px;
+      width: 30px;
+      height: 30px;
       animation: spin 1s linear infinite;
       margin: 0 auto 15px;
     }
     
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     
-    .progress-text {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #aaa;
-    }
+    .loading-title { font-weight: bold; margin-bottom: 5px; }
+    .progress-text { font-size: 12px; color: #aaa; }
     
-    /* 撮影フラッシュエフェクト */
+    /* フラッシュエフェクト */
     @keyframes flash {
       0% { opacity: 0; }
       50% { opacity: 1; }
       100% { opacity: 0; }
     }
-    
     .flash {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: white;
-      pointer-events: none;
-      opacity: 0;
-      z-index: 9999;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: white; pointer-events: none; opacity: 0; z-index: 9999;
     }
-    
-    .flash.active {
-      animation: flash 0.3s ease-out;
-    }
+    .flash.active { animation: flash 0.4s ease-out; }
   </style>
 </head>
 <body>
 
   <div id="container">
-    <!-- Step 1: 背景調整 -->
     <div id="step1Screen" class="screen active">
       <canvas id="backgroundCanvas"></canvas>
       
-      <div class="ui-overlay">
-        <div class="info-box">
-          <strong>📐 Step 1: 背景調整</strong><br>
-          画面をスワイプして好きな角度に調整してください
-        </div>
-        <button class="btn" id="step1NextBtn" onclick="goToStep2()">
-          ✅ 背景確定 → AR撮影へ
+      <div class="top-info">
+        <strong>Step 1: 背景の調整</strong><br>
+        画面をスワイプして背景位置を調整します
+      </div>
+      
+      <div class="bottom-controls">
+        <button class="btn btn-primary" onclick="goToStep2()">
+          決定して次へ →
         </button>
       </div>
     </div>
     
-    <!-- Step 2: AR撮影 -->
     <div id="step2Screen" class="screen">
+      <div class="top-info">
+        <strong>Step 2: AR撮影 & 合成</strong><br>
+        ① ARで撮影 → ② 画像を選択
+      </div>
+
+      <div class="placeholder-message">
+        <div style="font-size: 40px; margin-bottom: 10px; opacity: 0.5;">👨‍🚀</div>
+        モデルをタップまたは下のボタンで<br>ARカメラを起動してください
+      </div>
+      
       <model-viewer 
         id="viewer"
         src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
@@ -225,70 +288,51 @@
         shadow-intensity="1"
         auto-rotate>
         
-        <button slot="ar-button" style="
-          position: absolute;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: white;
-          border: none;
-          padding: 16px 40px;
-          border-radius: 30px;
-          font-weight: 700;
-          font-size: 18px;
-          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-          cursor: pointer;
-        ">
-          📱 ARで撮影する
+        <button slot="ar-button" class="ar-launch-btn">
+          ARカメラを起動
         </button>
       </model-viewer>
       
-      <div class="ui-overlay">
-        <div class="info-box">
-          <strong>📸 Step 2: AR撮影</strong><br>
-          「ARで撮影する」をタップして、デバイスのARモードで撮影してください<br>
-          <span style="font-size: 12px; color: #aaa;">
-            撮影後、写真アプリから画像を選択してください
-          </span>
-        </div>
+      <div class="bottom-controls">
         <div class="btn-group">
-          <button class="btn" onclick="goToStep1()">🔙 背景調整に戻る</button>
-          <input 
-            type="file" 
-            id="photoInput" 
-            accept="image/*" 
-            style="display: none;"
-            onchange="handlePhotoUpload(event)">
-          <button class="btn" onclick="document.getElementById('photoInput').click()">
-            🖼️ 撮影した写真を選択
+          <button class="btn btn-secondary" onclick="goToStep1()">
+            🔙 戻る
+          </button>
+          
+          <input type="file" id="photoInput" accept="image/*" style="display: none;" onchange="handlePhotoUpload(event)">
+          <button class="btn btn-primary" onclick="document.getElementById('photoInput').click()">
+            🖼️ 画像を選択
           </button>
         </div>
       </div>
     </div>
     
-    <!-- Step 3: 合成結果 -->
     <div id="step3Screen" class="screen">
       <canvas id="resultCanvas"></canvas>
       
-      <div class="ui-overlay">
-        <div class="info-box" id="step3Info">
-          <strong>✨ Step 3: 完成！</strong><br>
-          背景が合成されました
-        </div>
+      <div class="top-info" id="step3Info">
+        <strong>✨ 完成！</strong><br>
+        合成が完了しました
+      </div>
+      
+      <div class="bottom-controls">
         <div class="btn-group">
-          <button class="btn" onclick="downloadResult()">💾 保存</button>
-          <button class="btn" onclick="resetAll()">🔄 最初から</button>
+          <button class="btn btn-secondary" onclick="resetAll()">
+            🔄 最初から
+          </button>
+          <button class="btn btn-primary" onclick="downloadResult()">
+            💾 保存する
+          </button>
         </div>
       </div>
     </div>
   </div>
   
-  <!-- 非表示要素 -->
   <canvas id="tempCanvas" style="display:none;"></canvas>
   
   <div id="loading" style="display: none;">
     <div class="spinner"></div>
-    <div id="loadingText">処理中...</div>
+    <div class="loading-title" id="loadingText">処理中...</div>
     <div class="progress-text" id="progressText"></div>
   </div>
   
@@ -300,17 +344,16 @@
     let bodyPixNet = null;
     let currentStep = 1;
     
-    // 背景画像
+    // 背景画像設定
     let bgImage = new Image();
     bgImage.crossOrigin = 'anonymous';
+    // サンプル背景（変更可能）
     bgImage.src = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2048';
     let bgOffsetX = 0;
-    let finalBgImage = null; // 確定した背景
-    
-    // AR撮影画像
+    let finalBgImage = null;
     let arPhoto = null;
     
-    // タッチ操作
+    // タッチ操作用
     let lastX = 0;
     let isDragging = false;
     
@@ -324,19 +367,13 @@
       tempCanvas = document.getElementById('tempCanvas');
       tempCtx = tempCanvas.getContext('2d');
       
-      // Canvasサイズ設定
       resizeCanvas();
       window.addEventListener('resize', resizeCanvas);
-      
-      // タッチイベント設定
       setupTouchEvents();
-      
-      // 背景描画開始
       animateBackground();
       
-      // BodyPix読み込み（バックグラウンドで）
-      showLoading('AIモデルを読み込み中...', 'これには20-30秒かかる場合があります');
-      
+      // BodyPixモデル読み込み
+      showLoading('準備中...', 'AIモデルをダウンロードしています');
       try {
         bodyPixNet = await bodyPix.load({
           architecture: 'MobileNetV1',
@@ -344,85 +381,55 @@
           multiplier: 0.75,
           quantBytes: 2
         });
-        
-        console.log('BodyPix loaded');
         hideLoading();
-        
       } catch (error) {
-        console.error('BodyPix error:', error);
+        console.error(error);
         alert('AIモデルの読み込みに失敗しました');
         hideLoading();
       }
     }
     
     function resizeCanvas() {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      
-      bgCanvas.width = width;
-      bgCanvas.height = height;
-      resultCanvas.width = width;
-      resultCanvas.height = height;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      bgCanvas.width = w; bgCanvas.height = h;
+      resultCanvas.width = w; resultCanvas.height = h;
     }
     
-    // === タッチイベント ===
+    // === 背景操作 (Step 1) ===
     function setupTouchEvents() {
-      bgCanvas.addEventListener('touchstart', e => {
-        if (currentStep === 1) {
-          e.preventDefault();
-          lastX = e.touches[0].clientX;
-          isDragging = true;
-        }
-      }, { passive: false });
+      const startDrag = (x) => { lastX = x; isDragging = true; };
+      const moveDrag = (x) => {
+        if (!isDragging) return;
+        const delta = x - lastX;
+        bgOffsetX -= delta * 1.5; // 移動速度調整
+        lastX = x;
+      };
+      const endDrag = () => { isDragging = false; };
+
+      // Touch
+      bgCanvas.addEventListener('touchstart', e => { if(currentStep===1) startDrag(e.touches[0].clientX); }, {passive: true});
+      bgCanvas.addEventListener('touchmove', e => { if(currentStep===1) moveDrag(e.touches[0].clientX); }, {passive: false});
+      bgCanvas.addEventListener('touchend', endDrag);
       
-      bgCanvas.addEventListener('touchmove', e => {
-        if (currentStep === 1 && isDragging) {
-          e.preventDefault();
-          const deltaX = e.touches[0].clientX - lastX;
-          bgOffsetX -= deltaX * 2;
-          lastX = e.touches[0].clientX;
-        }
-      }, { passive: false });
-      
-      bgCanvas.addEventListener('touchend', () => {
-        isDragging = false;
-      });
-      
-      // マウス対応
-      bgCanvas.addEventListener('mousedown', e => {
-        if (currentStep === 1) {
-          lastX = e.clientX;
-          isDragging = true;
-        }
-      });
-      
-      bgCanvas.addEventListener('mousemove', e => {
-        if (currentStep === 1 && isDragging) {
-          const deltaX = e.clientX - lastX;
-          bgOffsetX -= deltaX * 2;
-          lastX = e.clientX;
-        }
-      });
-      
-      bgCanvas.addEventListener('mouseup', () => {
-        isDragging = false;
-      });
+      // Mouse
+      bgCanvas.addEventListener('mousedown', e => { if(currentStep===1) startDrag(e.clientX); });
+      bgCanvas.addEventListener('mousemove', e => { if(currentStep===1) moveDrag(e.clientX); });
+      bgCanvas.addEventListener('mouseup', endDrag);
+      bgCanvas.addEventListener('mouseleave', endDrag);
     }
     
-    // === 背景アニメーション ===
     function animateBackground() {
-      if (currentStep === 1) {
-        drawBackground();
-      }
+      if (currentStep === 1) drawBackground();
       requestAnimationFrame(animateBackground);
     }
     
     function drawBackground() {
       if (!bgImage.complete) return;
-      
       const w = bgCanvas.width;
       const h = bgCanvas.height;
-      const scale = Math.max(w / bgImage.width, h / bgImage.height) * 1.5;
+      // 画面全体を覆うようにスケーリング
+      const scale = Math.max(w / bgImage.width, h / bgImage.height) * 1.2;
       const imgW = bgImage.width * scale;
       const imgH = bgImage.height * scale;
       
@@ -431,168 +438,135 @@
       const y = (h - imgH) / 2;
       
       bgCtx.clearRect(0, 0, w, h);
+      // ループ描画
       bgCtx.drawImage(bgImage, x, y, imgW, imgH);
       bgCtx.drawImage(bgImage, x + imgW, y, imgW, imgH);
-      
-      if (x + imgW < w) {
-        bgCtx.drawImage(bgImage, x + imgW * 2, y, imgW, imgH);
-      }
+      if (x + imgW < w) bgCtx.drawImage(bgImage, x + imgW * 2, y, imgW, imgH);
     }
     
-    // === Step遷移 ===
+    // === 画面遷移 ===
+    function changeScreen(stepId) {
+      document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+      document.getElementById(stepId).classList.add('active');
+    }
+
     function goToStep2() {
-      // 背景を確定（画像として保存）
+      // 現在の背景状態を保存
       finalBgImage = new Image();
       finalBgImage.src = bgCanvas.toDataURL();
-      
       currentStep = 2;
-      document.getElementById('step1Screen').classList.remove('active');
-      document.getElementById('step2Screen').classList.add('active');
+      changeScreen('step2Screen');
     }
     
     function goToStep1() {
       currentStep = 1;
-      document.getElementById('step2Screen').classList.remove('active');
-      document.getElementById('step1Screen').classList.add('active');
+      changeScreen('step1Screen');
     }
     
-    // === 写真アップロード ===
+    // === 写真アップロード & 合成処理 ===
     window.handlePhotoUpload = async function(event) {
       const file = event.target.files[0];
       if (!file) return;
-      
-      if (!bodyPixNet) {
-        alert('AIモデルがまだ読み込み中です。しばらく待ってから再度お試しください。');
-        return;
-      }
+      if (!bodyPixNet) { alert('AI準備中です。少々お待ちください。'); return; }
       
       showLoading('画像を読み込み中...', '');
       
-      // 画像読み込み
       const reader = new FileReader();
-      reader.onload = async (e) => {
+      reader.onload = (e) => {
         arPhoto = new Image();
-        arPhoto.onload = async () => {
-          await processComposite();
-        };
+        arPhoto.onload = () => processComposite();
         arPhoto.src = e.target.result;
       };
       reader.readAsDataURL(file);
     };
     
-    // === 合成処理 ===
     async function processComposite() {
-      showLoading('人物を検出中...', 'この処理には時間がかかる場合があります');
+      showLoading('人物を切り抜き中...', 'AI解析を実行しています');
       
       try {
-        // 作業用Canvasサイズを画像に合わせる
+        // 画像サイズに合わせてCanvas設定
         tempCanvas.width = arPhoto.width;
         tempCanvas.height = arPhoto.height;
-        
-        // AR写真を描画
         tempCtx.drawImage(arPhoto, 0, 0);
         
-        updateProgress('人物検出中... (1/3)');
-        
-        // 人物セグメンテーション（静止画なので1回だけ）
+        // 1. 人物セグメンテーション
         const segmentation = await bodyPixNet.segmentPerson(tempCanvas, {
           flipHorizontal: false,
           internalResolution: 'medium',
           segmentationThreshold: 0.7
         });
         
-        updateProgress('背景合成中... (2/3)');
+        updateProgress('背景と合成中...');
         
-        // 結果Canvas準備
+        // 2. 結果用Canvas準備
         resultCanvas.width = arPhoto.width;
         resultCanvas.height = arPhoto.height;
         
-        // 1. 背景を描画
+        // 背景を描画 (ストレッチ)
         resultCtx.drawImage(finalBgImage, 0, 0, resultCanvas.width, resultCanvas.height);
         
-        updateProgress('仕上げ中... (3/3)');
-        
-        // 2. AR写真から人物部分のみ抽出して合成
+        // 3. ピクセル合成
         const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-        const resultData = resultCtx.createImageData(resultCanvas.width, resultCanvas.height);
+        const resultData = resultCtx.getImageData(0, 0, resultCanvas.width, resultCanvas.height);
+        const pixelCount = segmentation.data.length;
         
-        // 背景画像のピクセルデータを取得
-        const bgData = resultCtx.getImageData(0, 0, resultCanvas.width, resultCanvas.height);
-        
-        // 合成
-        for (let i = 0; i < segmentation.data.length; i++) {
-          const p = i * 4;
-          
+        for (let i = 0; i < pixelCount; i++) {
+          // 人物と判定されたピクセル(1)なら、元の写真の色を上書き
           if (segmentation.data[i] === 1) {
-            // 人物部分: AR写真の色を使用
+            const p = i * 4;
             resultData.data[p]     = imageData.data[p];
             resultData.data[p + 1] = imageData.data[p + 1];
             resultData.data[p + 2] = imageData.data[p + 2];
-            resultData.data[p + 3] = 255;
-          } else {
-            // 背景部分: 調整済み背景を使用
-            resultData.data[p]     = bgData.data[p];
-            resultData.data[p + 1] = bgData.data[p + 1];
-            resultData.data[p + 2] = bgData.data[p + 2];
-            resultData.data[p + 3] = 255;
+            resultData.data[p + 3] = 255; // アルファ不透明
           }
         }
         
         resultCtx.putImageData(resultData, 0, 0);
         
-        // Step 3へ
+        // 完了処理
         currentStep = 3;
-        document.getElementById('step2Screen').classList.remove('active');
-        document.getElementById('step3Screen').classList.add('active');
-        
+        changeScreen('step3Screen');
         hideLoading();
         
-        // フラッシュエフェクト
+        // エフェクト
         const flash = document.getElementById('flash');
         flash.classList.add('active');
-        setTimeout(() => flash.classList.remove('active'), 300);
+        setTimeout(() => flash.classList.remove('active'), 500);
         
       } catch (error) {
-        console.error('Composite error:', error);
-        alert('合成処理に失敗しました: ' + error.message);
+        console.error(error);
+        alert('処理に失敗しました: ' + error.message);
         hideLoading();
       }
     }
     
-    // === ダウンロード ===
+    // === 保存 & リセット ===
     window.downloadResult = function() {
-      const dataUrl = resultCanvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.download = `ar-composite-${Date.now()}.png`;
-      link.href = dataUrl;
+      link.href = resultCanvas.toDataURL('image/png');
       link.click();
       
-      document.getElementById('step3Info').innerHTML = 
-        '<strong>💾 保存しました！</strong><br>写真アプリを確認してください';
-      
-      setTimeout(() => {
-        document.getElementById('step3Info').innerHTML = 
-          '<strong>✨ Step 3: 完成！</strong><br>背景が合成されました';
-      }, 2000);
+      const info = document.getElementById('step3Info');
+      const originalText = info.innerHTML;
+      info.innerHTML = '<strong>💾 保存しました！</strong>';
+      setTimeout(() => info.innerHTML = originalText, 2000);
     };
     
-    // === リセット ===
     window.resetAll = function() {
       currentStep = 1;
       bgOffsetX = 0;
       arPhoto = null;
-      finalBgImage = null;
-      
-      document.getElementById('step3Screen').classList.remove('active');
-      document.getElementById('step1Screen').classList.add('active');
       document.getElementById('photoInput').value = '';
+      changeScreen('step1Screen');
     };
     
-    // === UI ヘルパー ===
-    function showLoading(text, subtext) {
-      document.getElementById('loading').style.display = 'block';
-      document.getElementById('loadingText').textContent = text;
-      document.getElementById('progressText').textContent = subtext;
+    // UIヘルパー
+    function showLoading(main, sub) {
+      const el = document.getElementById('loading');
+      el.style.display = 'block';
+      document.getElementById('loadingText').textContent = main;
+      document.getElementById('progressText').textContent = sub;
     }
     
     function hideLoading() {
@@ -603,11 +577,11 @@
       document.getElementById('progressText').textContent = text;
     }
     
-    // グローバル関数
+    // グローバル公開
     window.goToStep1 = goToStep1;
     window.goToStep2 = goToStep2;
     
-    // === 起動 ===
+    // 開始
     init();
   </script>
 </body>

@@ -166,10 +166,10 @@
       flex: 1;
     }
     
-    /* AR起動ボタン（model-viewer用） */
+    /* AR起動ボタン（修正済み） */
     .ar-launch-btn {
       position: absolute !important;
-      bottom: 180px !important; /* 中央から少し下へ移動 */
+      bottom: 180px !important; 
       left: 50% !important;
       transform: translateX(-50%) !important;
       background: white !important;
@@ -183,6 +183,11 @@
       display: flex !important;
       align-items: center !important;
       gap: 8px !important;
+      
+      /* 修正: 最前面に配置してタップ可能にする */
+      z-index: 10000 !important;
+      pointer-events: auto !important;
+      cursor: pointer !important;
     }
     
     .ar-launch-btn::before {
@@ -347,7 +352,6 @@
     // 背景画像設定
     let bgImage = new Image();
     bgImage.crossOrigin = 'anonymous';
-    // サンプル背景（変更可能）
     bgImage.src = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2048';
     let bgOffsetX = 0;
     let finalBgImage = null;
@@ -428,7 +432,6 @@
       if (!bgImage.complete) return;
       const w = bgCanvas.width;
       const h = bgCanvas.height;
-      // 画面全体を覆うようにスケーリング
       const scale = Math.max(w / bgImage.width, h / bgImage.height) * 1.2;
       const imgW = bgImage.width * scale;
       const imgH = bgImage.height * scale;
@@ -438,7 +441,6 @@
       const y = (h - imgH) / 2;
       
       bgCtx.clearRect(0, 0, w, h);
-      // ループ描画
       bgCtx.drawImage(bgImage, x, y, imgW, imgH);
       bgCtx.drawImage(bgImage, x + imgW, y, imgW, imgH);
       if (x + imgW < w) bgCtx.drawImage(bgImage, x + imgW * 2, y, imgW, imgH);
@@ -451,7 +453,6 @@
     }
 
     function goToStep2() {
-      // 現在の背景状態を保存
       finalBgImage = new Image();
       finalBgImage.src = bgCanvas.toDataURL();
       currentStep = 2;
@@ -484,12 +485,10 @@
       showLoading('人物を切り抜き中...', 'AI解析を実行しています');
       
       try {
-        // 画像サイズに合わせてCanvas設定
         tempCanvas.width = arPhoto.width;
         tempCanvas.height = arPhoto.height;
         tempCtx.drawImage(arPhoto, 0, 0);
         
-        // 1. 人物セグメンテーション
         const segmentation = await bodyPixNet.segmentPerson(tempCanvas, {
           flipHorizontal: false,
           internalResolution: 'medium',
@@ -498,37 +497,31 @@
         
         updateProgress('背景と合成中...');
         
-        // 2. 結果用Canvas準備
         resultCanvas.width = arPhoto.width;
         resultCanvas.height = arPhoto.height;
         
-        // 背景を描画 (ストレッチ)
         resultCtx.drawImage(finalBgImage, 0, 0, resultCanvas.width, resultCanvas.height);
         
-        // 3. ピクセル合成
         const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
         const resultData = resultCtx.getImageData(0, 0, resultCanvas.width, resultCanvas.height);
         const pixelCount = segmentation.data.length;
         
         for (let i = 0; i < pixelCount; i++) {
-          // 人物と判定されたピクセル(1)なら、元の写真の色を上書き
           if (segmentation.data[i] === 1) {
             const p = i * 4;
             resultData.data[p]     = imageData.data[p];
             resultData.data[p + 1] = imageData.data[p + 1];
             resultData.data[p + 2] = imageData.data[p + 2];
-            resultData.data[p + 3] = 255; // アルファ不透明
+            resultData.data[p + 3] = 255;
           }
         }
         
         resultCtx.putImageData(resultData, 0, 0);
         
-        // 完了処理
         currentStep = 3;
         changeScreen('step3Screen');
         hideLoading();
         
-        // エフェクト
         const flash = document.getElementById('flash');
         flash.classList.add('active');
         setTimeout(() => flash.classList.remove('active'), 500);
@@ -577,11 +570,9 @@
       document.getElementById('progressText').textContent = text;
     }
     
-    // グローバル公開
     window.goToStep1 = goToStep1;
     window.goToStep2 = goToStep2;
     
-    // 開始
     init();
   </script>
 </body>

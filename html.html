@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>WebAR Composite Camera</title>
+  
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0"></script>
+  
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+    body { font-family: sans-serif; overflow: hidden; background: #000; height: 100vh; width: 100vw; }
+    
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* --- レイヤー構成 --- */
+    
+    /* 1. 背景レイヤー (最背面) */
+    #backgroundCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+    
+    /* 2. 3Dモデルレイヤー (中間) */
+    model-viewer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 2;
+      --poster-color: transparent;
+      background-color: transparent;
+      opacity: 0; /* 最初は隠しておく */
+      transition: opacity 0.5s;
+    }
+    
+    /* 3. 人物合成レイヤー (最前面) */
+    #personCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 3;
+      pointer-events: none; /* タッチ操作を透過させる(超重要) */
+    }
+
+    /* UIパーツ */
+    .ui-layer {
+      position: absolute;
+      bottom: 20px; left: 0; width: 100%;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      pointer-events: none; /* UIエリアの余白は透過 */
+    }
+    
+    .btn {
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.95);
+      border: none;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      font-size: 16px;
+      transition: transform 0.1s;
+    }
+    .btn:active { transform: scale(0.95); }
+    
+    .status-badge {
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 15px;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    #loading {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8); color: white;
+      padding: 20px; border-radius: 10px; z-index: 2000;
+    }
+    
+    /* モード制御用のクラス */
+    .mode-background model-viewer {
+      pointer-events: none; /* 背景操作時はモデルに触れないようにする */
+    }
+    .mode-object model-viewer {
+      pointer-events: auto; /* オブジェクト操作時はモデルを触れるようにする */
+    }
+  </style>
+</head>
+<body>
+
+  <div id="container" class="mode-background">
+    <canvas id="backgroundCanvas"></canvas>
+
+    <model-viewer 
+      id="viewer"
+      src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+      camera-controls 
+      disable-zoom 
+      shadow-intensity="1"
+      auto-rotate>
+    </model-viewer>
+
+    <canvas id="personCanvas"></canvas>
+    
+    <div class="ui-layer">
+      <div class="status-badge" id="instruction">Step 1: 背景をスワイプして調整してください</div>
+      
+      <div style="display: flex; gap: 10px;">
+        <button class="btn" id="mainActionBtn" onclick="nextStep()" disabled>📷 カメラ起動中...</button>
+      </div>
+    </div>
+  </div>
+  
+  <video id="video" autoplay playsinline style="display:none;"></video>
+  <canvas id="tempCanvas" style="display:none;"></canvas> <div id="loading">AIモデル読み込み中...</div>
+
+  <script>
+    let videoElement, bgCanvas, bgCtx, personCanvas, personCtx, tempCanvas, tempCtx;
+    let bodyPixNet = null;
+    let isCameraActive = false;
+    let currentStep = 0; // 0:Init, 1:BgAdjust, 2:ObjectAdjust
+    
+    // 背景管理
+    let bgImage = new Image();
+    bgImage.crossOrigin = 'anonymous';
+    bgImage.src = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2048'; // 宇宙っぽい画像
+    let bgOffsetX = 0;
+    
+    // タッチ操作管理
+    let lastX = 0;
+    
+    async function init() {
+      videoElement = document.getElementById('video');
+      bgCanvas = document.getElementById('backgroundCanvas');
+      bgCtx = bgCanvas.getContext('2d');
+      personCanvas = document.getElementById('personCanvas');
+      personCtx = personCanvas.getContext('2d');
+      tempCanvas = document.getElementById('tempCanvas');
+      tempCtx = tempCanvas.getContext('2d');
+      
+      // 背景操作イベント（コンテナ全体で受け取るが、CSSでmodel-viewerのpointer-eventsを制御する）
+      const container = document.getElementById('container');
+      
+      container.addEventListener('touchstart', e => {
+        lastX = e.touches[0].clientX;
+      }, {passive: false});
+      
+      container.addEventListener('touchmove', e => {
+        // Step 1 (背景調整モード) の時だけ背景を動かす
+        if (currentStep === 1) {
+          const deltaX = e.touches[0].clientX - lastX;
+          bgOffsetX -= deltaX * 2; // スワイプ感度
+          lastX = e.touches[0].clientX;
+        }
+      }, {passive: false});
+
+      // BodyPixロード
+      try {
+        bodyPixNet = await bodyPix.load({
+          architecture: 'MobileNetV1',
+          multiplier: 0.5, // 軽量化
+          quantBytes: 2
+        });
+        document.getElementById('loading').style.display = 'none';
+        
+        // カメラ起動へ
+        startCamera();
+      } catch (error) {
+        console.error(error);
+        alert('AI読込エラー');
+      }
+    }
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720, facingMode: 'environment' }
+        });
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+          // キャンバスサイズ合わせ
+          const w = videoElement.videoWidth;
+          const h = videoElement.videoHeight;
+          [bgCanvas, personCanvas, tempCanvas].forEach(c => {
+            c.width = w;
+            c.height = h;
+          });
+          
+          isCameraActive = true;
+          
+          // Step 1へ移行
+          currentStep = 1;
+          const btn = document.getElementById('mainActionBtn');
+          btn.textContent = '🚀 ARオブジェクトを起動';
+          btn.disabled = false;
+          
+          processFrame();
+        };
+      } catch (e) {
+        alert('カメラエラー: ' + e);
+      }
+    }
+    
+    // ボタン操作: モード切替
+    window.nextStep = function() {
+      const viewer = document.getElementById('viewer');
+      const container = document.getElementById('container');
+      const btn = document.getElementById('mainActionBtn');
+      const text = document.getElementById('instruction');
+      
+      if (currentStep === 1) {
+        // Step 1 -> Step 2: オブジェクト表示モードへ
+        currentStep = 2;
+        
+        // model-viewerを表示 & 操作有効化
+        viewer.style.opacity = '1'; 
+        container.classList.remove('mode-background');
+        container.classList.add('mode-object');
+        
+        text.textContent = 'Step 2: オブジェクトを指で操作して位置合わせ';
+        btn.textContent = '🔄 背景調整に戻る';
+        
+      } else {
+        // Step 2 -> Step 1: 背景調整に戻る
+        currentStep = 1;
+        
+        // model-viewerは表示したままだが、操作を無効化（背景を触れるように）
+        // ※ 完全に消したい場合は opacity = '0' にする
+        container.classList.remove('mode-object');
+        container.classList.add('mode-background');
+        
+        text.textContent = 'Step 1: 背景をスワイプして調整';
+        btn.textContent = '👆 オブジェクト操作へ';
+      }
+    };
+
+    async function processFrame() {
+      if (!isCameraActive) return;
+
+      // 1. 背景描画 (常に実行)
+      drawLoopBackground();
+      
+      // 2. 人物切り抜き合成 (常に実行)
+      // BodyPixで人物マスクを取得
+      const segmentation = await bodyPixNet.segmentPerson(videoElement, {
+        internalResolution: 'low', // 高速化のため解像度を下げる
+        segmentationThreshold: 0.7
+      });
+      
+      // 一旦tempCanvasにビデオ映像を描く
+      tempCtx.drawImage(videoElement, 0, 0);
+      const videoData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      
+      // personCanvasをクリア
+      personCtx.clearRect(0, 0, personCanvas.width, personCanvas.height);
+      const personImgData = personCtx.createImageData(personCanvas.width, personCanvas.height);
+      
+      // マスク部分だけピクセルをコピー
+      for (let i = 0; i < segmentation.data.length; i++) {
+        if (segmentation.data[i] === 1) { // 人物と判定されたピクセル
+          const p = i * 4;
+          personImgData.data[p]   = videoData.data[p];
+          personImgData.data[p+1] = videoData.data[p+1];
+          personImgData.data[p+2] = videoData.data[p+2];
+          personImgData.data[p+3] = 255; // アルファMAX
+        }
+      }
+      
+      // 切り抜いた人物を最前面レイヤーに描画
+      personCtx.putImageData(personImgData, 0, 0);
+
+      requestAnimationFrame(processFrame);
+    }
+    
+    function drawLoopBackground() {
+      if (!bgImage.complete) return;
+      const w = bgCanvas.width;
+      const h = bgCanvas.height;
+      
+      // 画像のアスペクト比維持
+      const scale = Math.max(w / bgImage.width, h / bgImage.height);
+      const imgW = bgImage.width * scale;
+      const imgH = bgImage.height * scale;
+      
+      // ループ計算
+      let x = bgOffsetX % imgW;
+      if (x > 0) x -= imgW;
+      
+      bgCtx.drawImage(bgImage, x, (h-imgH)/2, imgW, imgH);
+      bgCtx.drawImage(bgImage, x + imgW, (h-imgH)/2, imgW, imgH);
+      if (x + imgW < w) {
+        bgCtx.drawImage(bgImage, x + imgW * 2, (h-imgH)/2, imgW, imgH);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

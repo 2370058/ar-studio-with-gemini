@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>WebAR Composite Camera</title>
+  <title>AR Composite Camera v2</title>
   
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
@@ -43,9 +43,20 @@
       height: 100%;
       object-fit: cover;
       z-index: 1;
+      display: none;
     }
     
-    /* Layer 2: 3Dモデル（中間） */
+    /* Layer 2: カメラ映像（AR配置時） */
+    #cameraCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; 
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+    
+    /* Layer 2.5: model-viewer（AR配置モード） */
     model-viewer {
       position: absolute;
       top: 0; left: 0;
@@ -54,7 +65,6 @@
       z-index: 2;
       --poster-color: transparent;
       background-color: transparent;
-      opacity: 1; /* 最初から表示 */
     }
     
     /* Layer 3: 人物（最前面） */
@@ -64,8 +74,26 @@
       width: 100%; 
       height: 100%;
       object-fit: cover;
-      z-index: 3;
+      z-index: 5;
       pointer-events: none;
+      display: none;
+    }
+    
+    /* デバッグ表示 */
+    #debugInfo {
+      position: absolute;
+      top: 80px;
+      left: 10px;
+      background: rgba(0,0,0,0.8);
+      color: #0f0;
+      padding: 8px;
+      font-size: 10px;
+      font-family: monospace;
+      z-index: 9999;
+      border-radius: 5px;
+      max-width: 200px;
+      word-wrap: break-word;
+      display: none;
     }
 
     /* === UI要素 === */
@@ -108,6 +136,11 @@
       cursor: not-allowed;
     }
     
+    .btn.primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
     .status-badge {
       background: rgba(0, 0, 0, 0.8);
       color: white;
@@ -117,36 +150,21 @@
       font-weight: 600;
       text-align: center;
       max-width: 90%;
-      line-height: 1.4;
+      line-height: 1.5;
     }
     
     .info-box {
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(0, 0, 0, 0.8);
       color: white;
       padding: 12px 16px;
       border-radius: 12px;
-      font-size: 12px;
+      font-size: 13px;
       z-index: 1000;
-      max-width: 300px;
-      line-height: 1.5;
-    }
-    
-    .debug-info {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(255, 0, 0, 0.8);
-      color: white;
-      padding: 10px;
-      border-radius: 8px;
-      font-size: 11px;
-      z-index: 1000;
-      font-family: monospace;
-      max-width: 200px;
-      line-height: 1.4;
+      max-width: 280px;
+      line-height: 1.6;
     }
 
     #loading {
@@ -177,122 +195,87 @@
       100% { transform: rotate(360deg); }
     }
     
-    /* === モード切替 === */
-    .mode-object model-viewer {
-      pointer-events: auto;
-    }
-    
-    .mode-background model-viewer {
-      pointer-events: none;
-    }
-    
-    /* 撮影ボタン */
-    .capture-btn {
-      pointer-events: auto;
-      width: 70px;
-      height: 70px;
-      border-radius: 50%;
-      background: white;
-      border: 5px solid rgba(255,255,255,0.5);
-      position: relative;
-      cursor: pointer;
-      transition: transform 0.2s;
-      display: none;
-    }
-    
-    .capture-btn.active {
-      display: block;
-    }
-    
-    .capture-btn:active {
-      transform: scale(0.9);
-    }
-    
-    .capture-btn::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 60px;
-      height: 60px;
-      background: white;
-      border-radius: 50%;
+    /* AR button styling */
+    .ar-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 16px;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
     }
   </style>
 </head>
 <body>
 
-  <div id="container" class="mode-object">
-    <!-- Layer 1: 360度背景 -->
+  <div id="container">
+    <!-- カメラ映像 -->
+    <canvas id="cameraCanvas"></canvas>
+    
+    <!-- 360度背景 -->
     <canvas id="backgroundCanvas"></canvas>
 
-    <!-- Layer 2: 3Dモデル -->
+    <!-- 3Dモデル（AR配置用） -->
     <model-viewer 
       id="viewer"
       src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+      ios-src="https://modelviewer.dev/shared-assets/models/Astronaut.usdz"
+      ar
+      ar-modes="scene-viewer webxr quick-look"
       camera-controls
       touch-action="pan-y"
       shadow-intensity="1"
-      auto-rotate
-      auto-rotate-delay="0">
+      loading="eager">
+      <button slot="ar-button" class="ar-button">
+        🚀 ARで床に配置
+      </button>
     </model-viewer>
 
-    <!-- Layer 3: 人物 -->
+    <!-- 人物レイヤー -->
     <canvas id="personCanvas"></canvas>
     
     <!-- デバッグ情報 -->
-    <div class="debug-info" id="debugInfo">
-      初期化中...
-    </div>
+    <div id="debugInfo"></div>
     
     <!-- UI -->
     <div class="info-box" id="infoBox">
-      <strong>Step 1: オブジェクト配置</strong><br>
-      指で3Dモデルを操作してください
+      <strong>Step 1: ARオブジェクト配置</strong><br>
+      「🚀 ARで床に配置」をタップ
     </div>
     
     <div class="ui-layer">
       <div class="status-badge" id="instruction">
-        指で3Dモデルを回転・拡大・移動できます
+        ARボタンをタップして3Dモデルを床に配置してください
       </div>
       
-      <div style="display: flex; gap: 12px; align-items: center;">
-        <button class="btn" id="mainActionBtn" onclick="nextStep()" disabled>
-          ⏳ 準備中...
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+        <button class="btn" id="debugBtn" onclick="toggleDebug()" style="display:none;">
+          🐛 デバッグ
         </button>
-        
-        <div class="capture-btn" id="captureBtn" onclick="capturePhoto()"></div>
       </div>
     </div>
   </div>
   
   <!-- 非表示要素 -->
-  <video id="video" autoplay playsinline muted style="display:none;"></video>
+  <video id="video" autoplay playsinline style="display:none;"></video>
   <canvas id="tempCanvas" style="display:none;"></canvas>
   
   <div id="loading">
     <div class="spinner"></div>
-    <div>AIモデル読み込み中...<br><span style="font-size:12px;">初回は時間がかかります</span></div>
+    <div>AIモデル読み込み中...</div>
   </div>
 
   <script>
     // === グローバル変数 ===
-    let videoElement, bgCanvas, bgCtx, personCanvas, personCtx, tempCanvas, tempCtx;
+    let videoElement, cameraCanvas, cameraCtx;
+    let bgCanvas, bgCtx, personCanvas, personCtx, tempCanvas, tempCtx;
     let bodyPixNet = null;
     let isCameraActive = false;
     let isProcessing = false;
-    let currentStep = 1; // 1:オブジェクト調整, 2:背景調整（順番逆転）
-    
-    // デバッグ情報
-    let debugInfo = {
-      fps: 0,
-      segmentationTime: 0,
-      personDetected: false,
-      lastError: null
-    };
-    let frameCount = 0;
-    let lastFpsUpdate = Date.now();
+    let currentStep = 0; // 0:Init, 1:AR配置, 2:背景調整, 3:完成
+    let debugMode = false;
     
     // 背景管理
     let bgImage = new Image();
@@ -305,64 +288,173 @@
     let lastX = 0;
     let lastY = 0;
     
-    // === デバッグ情報更新 ===
-    function updateDebugInfo() {
-      const debugEl = document.getElementById('debugInfo');
-      debugEl.innerHTML = `
-        FPS: ${debugInfo.fps.toFixed(1)}<br>
-        処理時間: ${debugInfo.segmentationTime}ms<br>
-        人物検出: ${debugInfo.personDetected ? '✅' : '❌'}<br>
-        カメラ: ${isCameraActive ? 'ON' : 'OFF'}<br>
-        ${debugInfo.lastError ? `エラー: ${debugInfo.lastError}` : ''}
-      `;
-    }
+    // デバッグ用
+    let segmentationCount = 0;
+    let lastProcessTime = 0;
     
     // === 初期化 ===
     async function init() {
+      videoElement = document.getElementById('video');
+      cameraCanvas = document.getElementById('cameraCanvas');
+      cameraCtx = cameraCanvas.getContext('2d');
+      bgCanvas = document.getElementById('backgroundCanvas');
+      bgCtx = bgCanvas.getContext('2d');
+      personCanvas = document.getElementById('personCanvas');
+      personCtx = personCanvas.getContext('2d', { willReadFrequently: true });
+      tempCanvas = document.getElementById('tempCanvas');
+      tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+      
+      // デバッグボタン表示
+      document.getElementById('debugBtn').style.display = 'block';
+      
+      // BodyPix読み込み
       try {
-        // Canvas要素取得
-        videoElement = document.getElementById('video');
-        bgCanvas = document.getElementById('backgroundCanvas');
-        bgCtx = bgCanvas.getContext('2d');
-        personCanvas = document.getElementById('personCanvas');
-        personCtx = personCanvas.getContext('2d', { willReadFrequently: true });
-        tempCanvas = document.getElementById('tempCanvas');
-        tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-        
-        console.log('Canvas initialized');
-        
-        // タッチイベント設定
-        setupTouchEvents();
-        
-        // 背景画像読み込み
-        bgImage.onload = () => {
-          console.log('Background image loaded');
-        };
-        
-        // BodyPix読み込み（より軽量な設定）
-        console.log('Loading BodyPix...');
+        log('BodyPix loading...');
         bodyPixNet = await bodyPix.load({
           architecture: 'MobileNetV1',
           outputStride: 16,
-          multiplier: 0.5, // 0.75 → 0.5 に軽量化
+          multiplier: 0.75,
           quantBytes: 2
         });
         
-        console.log('BodyPix loaded successfully');
+        log('BodyPix loaded!');
         document.getElementById('loading').style.display = 'none';
         
         // カメラ起動
         await startCamera();
         
-        // デバッグ情報更新ループ
-        setInterval(updateDebugInfo, 500);
+        // AR配置完了を監視
+        const viewer = document.getElementById('viewer');
+        viewer.addEventListener('ar-status', handleARStatus);
         
       } catch (error) {
-        console.error('Initialization error:', error);
-        debugInfo.lastError = error.message;
+        console.error('Init error:', error);
         alert('初期化エラー: ' + error.message);
       }
     }
+    
+    // === カメラ起動 ===
+    async function startCamera() {
+      try {
+        log('Starting camera...');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 }, 
+            facingMode: 'environment' 
+          }
+        });
+        
+        videoElement.srcObject = stream;
+        
+        await new Promise(resolve => {
+          videoElement.onloadedmetadata = () => {
+            const w = videoElement.videoWidth;
+            const h = videoElement.videoHeight;
+            
+            log(`Camera: ${w}x${h}`);
+            
+            [cameraCanvas, bgCanvas, personCanvas, tempCanvas].forEach(c => {
+              c.width = w;
+              c.height = h;
+            });
+            
+            resolve();
+          };
+        });
+        
+        isCameraActive = true;
+        currentStep = 1;
+        
+        // カメラ映像を表示開始
+        drawCameraFeed();
+        
+        log('Camera started!');
+        
+      } catch (error) {
+        console.error('Camera error:', error);
+        alert('カメラエラー: ' + error.message);
+      }
+    }
+    
+    // === カメラ映像描画 ===
+    function drawCameraFeed() {
+      if (!isCameraActive) return;
+      
+      if (currentStep === 1) {
+        // Step 1: そのままカメラ映像を表示（AR配置用）
+        cameraCtx.drawImage(videoElement, 0, 0, cameraCanvas.width, cameraCanvas.height);
+      }
+      
+      requestAnimationFrame(drawCameraFeed);
+    }
+    
+    // === AR状態監視 ===
+    function handleARStatus(event) {
+      log('AR Status: ' + event.detail.status);
+      
+      if (event.detail.status === 'session-started') {
+        document.getElementById('instruction').textContent = 
+          '床を映してタップしてオブジェクトを配置';
+        document.getElementById('infoBox').innerHTML = 
+          '<strong>ARモード</strong><br>床にオブジェクトを配置してください';
+          
+      } else if (event.detail.status === 'object-placed') {
+        document.getElementById('instruction').textContent = 
+          '✅ オブジェクト配置完了！';
+          
+      } else if (event.detail.status === 'failed') {
+        log('AR failed: ' + JSON.stringify(event.detail));
+        alert('AR機能が利用できません。デバイスを確認してください。');
+      }
+    }
+    
+    // === AR終了後の処理（手動トリガー） ===
+    window.startBackgroundMode = function() {
+      currentStep = 2;
+      
+      // model-viewerを非表示
+      document.getElementById('viewer').style.display = 'none';
+      
+      // カメラCanvasを非表示、背景Canvasを表示
+      cameraCanvas.style.display = 'none';
+      bgCanvas.style.display = 'block';
+      personCanvas.style.display = 'block';
+      
+      // タッチイベント設定
+      setupTouchEvents();
+      
+      // UIを更新
+      document.getElementById('instruction').textContent = 
+        'Step 2: 背景をスワイプして調整してください';
+      document.getElementById('infoBox').innerHTML = 
+        '<strong>Step 2: 背景調整</strong><br>画面をスワイプして背景を回転<br><small style="color:#aaa;">人物が自動検出されます</small>';
+      
+      // 人物検出開始
+      processPersonSegmentation();
+      
+      log('Background mode started');
+    };
+    
+    // ARボタンの後に背景モード開始ボタンを追加
+    setTimeout(() => {
+      const ui = document.querySelector('.ui-layer > div:last-child');
+      const btn = document.createElement('button');
+      btn.className = 'btn primary';
+      btn.textContent = '➡️ 背景調整へ進む';
+      btn.onclick = startBackgroundMode;
+      btn.style.display = 'none';
+      btn.id = 'nextStepBtn';
+      ui.appendChild(btn);
+      
+      // ARセッション終了を検出したらボタン表示
+      const viewer = document.getElementById('viewer');
+      viewer.addEventListener('ar-status', (e) => {
+        if (e.detail.status === 'not-presenting' && currentStep === 1) {
+          btn.style.display = 'block';
+        }
+      });
+    }, 1000);
     
     // === タッチイベント設定 ===
     function setupTouchEvents() {
@@ -390,129 +482,33 @@
       }, { passive: false });
     }
     
-    // === カメラ起動 ===
-    async function startCamera() {
-      try {
-        console.log('Requesting camera access...');
-        
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            width: { ideal: 640 },  // 1280 → 640 に軽量化
-            height: { ideal: 480 }, // 720 → 480 に軽量化
-            facingMode: 'environment' 
-          }
-        });
-        
-        console.log('Camera access granted');
-        videoElement.srcObject = stream;
-        
-        await new Promise(resolve => {
-          videoElement.onloadedmetadata = () => {
-            console.log('Video metadata loaded');
-            const w = videoElement.videoWidth;
-            const h = videoElement.videoHeight;
-            
-            console.log(`Video size: ${w}x${h}`);
-            
-            // すべてのCanvasサイズを統一
-            [bgCanvas, personCanvas, tempCanvas].forEach(c => {
-              c.width = w;
-              c.height = h;
-            });
-            
-            resolve();
-          };
-        });
-        
-        isCameraActive = true;
-        
-        // UI更新
-        document.getElementById('mainActionBtn').textContent = '🌍 背景調整へ';
-        document.getElementById('mainActionBtn').disabled = false;
-        document.getElementById('captureBtn').classList.add('active');
-        
-        console.log('Starting frame processing...');
-        
-        // 処理開始
-        processFrame();
-        
-      } catch (error) {
-        console.error('Camera error:', error);
-        debugInfo.lastError = error.message;
-        alert('カメラエラー: ' + error.message);
-      }
-    }
-    
-    // === ステップ切り替え ===
-    window.nextStep = function() {
-      const viewer = document.getElementById('viewer');
-      const container = document.getElementById('container');
-      const btn = document.getElementById('mainActionBtn');
-      const instruction = document.getElementById('instruction');
-      const infoBox = document.getElementById('infoBox');
-      
-      if (currentStep === 1) {
-        // Step 1 → Step 2: 背景調整モードへ
-        currentStep = 2;
-        
-        viewer.autoRotate = false;
-        
-        container.classList.remove('mode-object');
-        container.classList.add('mode-background');
-        
-        instruction.textContent = '画面をスワイプして背景を回転できます';
-        infoBox.innerHTML = '<strong>Step 2: 背景調整</strong><br>画面をスワイプして背景を回転';
-        btn.textContent = '🎨 オブジェクト調整に戻る';
-        
-      } else {
-        // Step 2 → Step 1: オブジェクト調整に戻る
-        currentStep = 1;
-        
-        container.classList.remove('mode-background');
-        container.classList.add('mode-object');
-        
-        instruction.textContent = '指で3Dモデルを回転・拡大・移動できます';
-        infoBox.innerHTML = '<strong>Step 1: オブジェクト配置</strong><br>指で3Dモデルを操作';
-        btn.textContent = '➡️ 背景調整へ';
-      }
-    };
-    
-    // === メインループ ===
-    async function processFrame() {
-      if (!isCameraActive) {
-        console.log('Camera not active, stopping processFrame');
+    // === 人物検出処理 ===
+    async function processPersonSegmentation() {
+      if (currentStep !== 2 || !isCameraActive) {
+        if (currentStep === 2) {
+          requestAnimationFrame(processPersonSegmentation);
+        }
         return;
       }
       
-      // FPS計算
-      frameCount++;
-      const now = Date.now();
-      if (now - lastFpsUpdate > 1000) {
-        debugInfo.fps = frameCount / ((now - lastFpsUpdate) / 1000);
-        frameCount = 0;
-        lastFpsUpdate = now;
-      }
-      
-      // 1. 背景描画（常に実行）
+      // 背景を描画
       drawLoopBackground();
       
-      // 2. 人物切り抜き（2フレームに1回に軽量化）
-      if (!isProcessing && frameCount % 2 === 0) {
+      // 人物検出（重い処理）
+      if (!isProcessing) {
         isProcessing = true;
+        const startTime = performance.now();
         
         try {
-          const startTime = Date.now();
-          
-          // セグメンテーション実行
           const segmentation = await bodyPixNet.segmentPerson(videoElement, {
             flipHorizontal: false,
-            internalResolution: 'low', // medium → low に軽量化
-            segmentationThreshold: 0.7
+            internalResolution: 'medium',
+            segmentationThreshold: 0.5  // 0.7 → 0.5 に下げて検出しやすく
           });
           
-          debugInfo.segmentationTime = Date.now() - startTime;
+          segmentationCount++;
           
-          // ビデオ映像を一時Canvasに描画
+          // ビデオ映像を取得
           tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
           const videoData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
           
@@ -520,8 +516,10 @@
           personCtx.clearRect(0, 0, personCanvas.width, personCanvas.height);
           const personImgData = personCtx.createImageData(personCanvas.width, personCanvas.height);
           
-          // 人物部分のみコピー
+          // 人物ピクセル数をカウント
           let personPixelCount = 0;
+          
+          // 人物部分のみコピー
           for (let i = 0; i < segmentation.data.length; i++) {
             if (segmentation.data[i] === 1) {
               personPixelCount++;
@@ -533,21 +531,21 @@
             }
           }
           
-          debugInfo.personDetected = personPixelCount > 1000;
-          
           personCtx.putImageData(personImgData, 0, 0);
           
-          debugInfo.lastError = null;
+          lastProcessTime = performance.now() - startTime;
+          
+          log(`Seg #${segmentationCount}: ${personPixelCount}px, ${lastProcessTime.toFixed(0)}ms`);
           
         } catch (error) {
-          console.error('Processing error:', error);
-          debugInfo.lastError = error.message.substring(0, 30);
+          console.error('Segmentation error:', error);
+          log('Seg ERROR: ' + error.message);
         }
         
         isProcessing = false;
       }
       
-      requestAnimationFrame(processFrame);
+      requestAnimationFrame(processPersonSegmentation);
     }
     
     // === 背景描画 ===
@@ -567,53 +565,27 @@
       const y = (h - imgH) / 2 + bgOffsetY;
       
       bgCtx.clearRect(0, 0, w, h);
-      
       bgCtx.drawImage(bgImage, x, y, imgW, imgH);
       bgCtx.drawImage(bgImage, x + imgW, y, imgW, imgH);
       
-      if (x + imgW < w) {
+      if (x + imgW * 2 < w) {
         bgCtx.drawImage(bgImage, x + imgW * 2, y, imgW, imgH);
       }
     }
     
-    // === 撮影機能 ===
-    window.capturePhoto = function() {
-      if (!isCameraActive) return;
-      
-      const captureCanvas = document.createElement('canvas');
-      captureCanvas.width = bgCanvas.width;
-      captureCanvas.height = bgCanvas.height;
-      const captureCtx = captureCanvas.getContext('2d');
-      
-      // 1. 背景
-      captureCtx.drawImage(bgCanvas, 0, 0);
-      
-      // 2. 人物
-      captureCtx.drawImage(personCanvas, 0, 0);
-      
-      // ダウンロード
-      const dataUrl = captureCanvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `ar-photo-${Date.now()}.png`;
-      link.href = dataUrl;
-      link.click();
-      
-      // フラッシュエフェクト
-      bgCanvas.style.filter = 'brightness(1.5)';
-      setTimeout(() => {
-        bgCanvas.style.filter = 'brightness(1)';
-      }, 100);
-      
-      document.getElementById('instruction').textContent = '📸 写真を保存しました！';
-      setTimeout(() => {
-        if (currentStep === 1) {
-          document.getElementById('instruction').textContent = 
-            '指で3Dモデルを回転・拡大・移動できます';
-        } else {
-          document.getElementById('instruction').textContent = 
-            '画面をスワイプして背景を回転できます';
-        }
-      }, 2000);
+    // === デバッグ ===
+    function log(msg) {
+      console.log('[AR] ' + msg);
+      if (debugMode) {
+        const debug = document.getElementById('debugInfo');
+        debug.innerHTML = msg + '<br>' + debug.innerHTML.split('<br>').slice(0, 10).join('<br>');
+      }
+    }
+    
+    window.toggleDebug = function() {
+      debugMode = !debugMode;
+      document.getElementById('debugInfo').style.display = debugMode ? 'block' : 'none';
+      if (debugMode) log('Debug mode ON');
     };
     
     // === 起動 ===

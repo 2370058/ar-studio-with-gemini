@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A-Frame AR 床面認識 オブジェクト配置</title>
+  <title>Cross-Platform AR - 廃倉庫モデル</title>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
     * {
       margin: 0;
@@ -16,6 +17,32 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       overflow: hidden;
+      background: #000;
+    }
+    
+    .platform-container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+    
+    /* A-Frame用スタイル */
+    .aframe-container {
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* model-viewer用スタイル */
+    .model-viewer-container {
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+    
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      background-color: transparent;
     }
     
     .overlay {
@@ -58,6 +85,14 @@
       color: #e0e0e0;
     }
     
+    .platform-info {
+      background: rgba(0, 212, 255, 0.1);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+    
     .ar-status {
       background: rgba(0, 212, 255, 0.1);
       border: 1px solid rgba(0, 212, 255, 0.3);
@@ -86,7 +121,7 @@
       color: white;
       padding: 15px;
       border-radius: 12px;
-      max-width: 400px;
+      max-width: 380px;
       max-height: 60vh;
       overflow-y: auto;
       pointer-events: auto;
@@ -155,6 +190,8 @@
       display: flex;
       gap: 12px;
       pointer-events: auto;
+      flex-wrap: wrap;
+      justify-content: center;
     }
     
     .btn {
@@ -177,14 +214,22 @@
       transform: scale(0.95);
     }
     
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
     .btn.primary {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
     }
     
-    .btn.ar-active {
+    .btn.ar-btn {
       background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
       color: white;
+    }
+    
+    .btn.ar-active {
       animation: pulse 2s infinite;
     }
     
@@ -193,97 +238,30 @@
       50% { box-shadow: 0 6px 30px rgba(0,212,255,0.8); }
     }
     
-    .crosshair {
+    .ar-instructions {
       position: absolute;
-      top: 50%;
+      bottom: 120px;
       left: 50%;
-      transform: translate(-50%, -50%);
-      width: 40px;
-      height: 40px;
-      border: 2px solid rgba(0, 212, 255, 0.8);
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 500;
-      transition: all 0.3s;
-    }
-    
-    .crosshair::before,
-    .crosshair::after {
-      content: '';
-      position: absolute;
-      background: rgba(0, 212, 255, 0.8);
-    }
-    
-    .crosshair::before {
-      width: 16px;
-      height: 2px;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-    
-    .crosshair::after {
-      width: 2px;
-      height: 16px;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-    
-    .crosshair.ready {
-      border-color: #6bcf7f;
-      animation: ready-pulse 1s infinite;
-    }
-    
-    .crosshair.ready::before,
-    .crosshair.ready::after {
-      background: #6bcf7f;
-    }
-    
-    @keyframes ready-pulse {
-      0%, 100% { transform: translate(-50%, -50%) scale(1); }
-      50% { transform: translate(-50%, -50%) scale(1.2); }
-    }
-    
-    .placed-objects-list {
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(10px);
-      padding: 15px;
-      border-radius: 12px;
-      pointer-events: auto;
-      max-width: 300px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .placed-objects-list h4 {
-      color: #00d4ff;
-      margin-bottom: 10px;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 25px;
       font-size: 14px;
+      text-align: center;
+      max-width: 300px;
+      pointer-events: auto;
+      display: none;
     }
     
-    .object-item {
-      background: rgba(255, 255, 255, 0.1);
-      padding: 8px 12px;
-      border-radius: 6px;
-      margin-bottom: 6px;
-      font-size: 12px;
-      color: white;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .ar-instructions.show {
+      display: block;
+      animation: fadeIn 0.5s ease-in-out;
     }
     
-    .delete-btn {
-      background: #ff6b6b;
-      color: white;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      cursor: pointer;
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
     
     .loading {
@@ -319,53 +297,115 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    /* iOS専用のAR Quick Look用スタイル */
+    .ios-ar-link {
+      display: none;
+    }
+
+    .model-scale-controls {
+      position: absolute;
+      bottom: 150px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 12px;
+      pointer-events: auto;
+      display: none;
+    }
+
+    .model-scale-controls.show {
+      display: block;
+    }
+
+    .scale-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .scale-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
   </style>
 </head>
 <body>
-  <!-- A-Frameシーン -->
-  <a-scene 
-    id="scene"
-    embedded 
-    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-    vr-mode-ui="enabled: false"
-    background="color: transparent"
-    ar-hit-test
-  >
-    <!-- 環境光 -->
-    <a-entity light="type: ambient; color: #FFF; intensity: 0.6"></a-entity>
-    <a-entity light="type: directional; color: #FFF; intensity: 0.8" position="0 5 5"></a-entity>
+  <div class="platform-container">
     
-    <!-- AR空間（配置されたオブジェクトのコンテナ） -->
-    <a-entity id="ar-world" position="0 0 0">
-      <!-- 配置されたオブジェクトがここに追加される -->
-    </a-entity>
-    
-    <!-- カメラ -->
-    <a-entity id="camera" camera look-controls wasd-controls="enabled: false" position="0 1.6 0"></a-entity>
-  </a-scene>
+    <!-- A-Frame AR (Android/Desktop用) -->
+    <div class="aframe-container" id="aframe-container">
+      <a-scene 
+        id="scene"
+        embedded 
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        vr-mode-ui="enabled: false"
+        background="color: transparent"
+        ar-hit-test
+      >
+        <!-- 環境光 -->
+        <a-entity light="type: ambient; color: #FFF; intensity: 0.6"></a-entity>
+        <a-entity light="type: directional; color: #FFF; intensity: 0.8" position="0 5 5"></a-entity>
+        
+        <!-- AR空間（配置されたモデルのコンテナ） -->
+        <a-entity id="ar-world" position="0 0 0">
+          <!-- 配置された廃倉庫モデルがここに追加される -->
+        </a-entity>
+        
+        <!-- カメラ -->
+        <a-entity id="camera" camera look-controls wasd-controls="enabled: false" position="0 1.6 0"></a-entity>
+      </a-scene>
+    </div>
+
+    <!-- model-viewer (iOS用) -->
+    <div class="model-viewer-container" id="model-viewer-container">
+      <model-viewer
+        id="warehouse-viewer"
+        src="./models/abandoned_warehouse_-_interior_scene.glb"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        camera-controls
+        shadow-intensity="1"
+        auto-rotate
+        auto-rotate-delay="3000"
+        environment-image="neutral"
+        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23222'/%3E%3Ctext x='50' y='50' text-anchor='middle' dy='0.35em' fill='white' font-family='Arial' font-size='12'%3E廃倉庫モデル%3C/text%3E%3C/svg%3E"
+      >
+        <button id="ar-button" slot="ar-button" class="btn ar-btn">
+          <span>🏗️</span>
+          <span>ARで配置</span>
+        </button>
+      </model-viewer>
+    </div>
+
+  </div>
 
   <!-- オーバーレイUI -->
   <div class="overlay">
     <div class="info-panel">
-      <h2>🎯 AR Floor Detection</h2>
-      <p><strong>ステータス:</strong> <span id="ar-status-text">初期化中...</span></p>
+      <h2>🏗️ 廃倉庫 AR配置</h2>
+      <p><strong>プラットフォーム:</strong> <span id="platform-info">検出中...</span></p>
       <div id="ar-status-indicator" class="ar-status">
-        <p style="margin: 0; font-size: 12px;">床面をゆっくりとスキャンしてください</p>
+        <p style="margin: 0; font-size: 12px;" id="ar-status-text">初期化中...</p>
       </div>
-      <p style="font-size: 12px; color: #999; margin-top: 10px;">
-        床面を検出後、タップで3Dオブジェクトを配置
-      </p>
+      <div id="platform-specific-info" class="platform-info">
+        <!-- プラットフォーム固有の情報がここに表示 -->
+      </div>
     </div>
     
     <!-- デバッグパネル -->
     <div class="debug-panel">
-      <h3>🔍 AR Debug</h3>
+      <h3>🔍 プラットフォーム診断</h3>
       
       <div class="status-grid">
-        <div class="status-item" id="webxr-status">WebXR: 確認中</div>
-        <div class="status-item" id="camera-status">カメラ: 未取得</div>
-        <div class="status-item" id="plane-status">平面検出: 待機中</div>
-        <div class="status-item" id="objects-status">配置数: 0</div>
+        <div class="status-item" id="platform-status">プラットフォーム: 検出中</div>
+        <div class="status-item" id="ar-support-status">ARサポート: 確認中</div>
+        <div class="status-item" id="camera-status">カメラ: 未確認</div>
+        <div class="status-item" id="model-status">モデル: 読み込み中</div>
       </div>
       
       <div id="debug-logs" style="max-height: 150px; overflow-y: auto;">
@@ -373,27 +413,33 @@
       </div>
     </div>
     
-    <!-- 配置オブジェクト一覧 -->
-    <div class="placed-objects-list" id="objects-list" style="display: none;">
-      <h4>🏗️ 配置済み</h4>
-      <div id="objects-container">
-        <!-- 配置されたオブジェクトのリストがここに表示 -->
-      </div>
+    <!-- AR使用説明 -->
+    <div class="ar-instructions" id="ar-instructions">
+      <p id="instruction-text">床面をスキャンしてタップで配置</p>
+    </div>
+
+    <!-- モデルスケール調整 -->
+    <div class="model-scale-controls" id="scale-controls">
+      <h4 style="color: white; margin-bottom: 10px; font-size: 12px;">モデルサイズ</h4>
+      <button class="scale-btn" onclick="changeScale(0.5)">小 (50%)</button>
+      <button class="scale-btn" onclick="changeScale(1.0)">標準 (100%)</button>
+      <button class="scale-btn" onclick="changeScale(2.0)">大 (200%)</button>
     </div>
     
-    <!-- ARクロスヘア -->
-    <div class="crosshair" id="crosshair" style="display: none;"></div>
-    
     <div class="controls">
-      <button class="btn primary" id="place-btn" onclick="placeObject()" disabled>
-        <span>📦</span>
-        <span>オブジェクト配置</span>
+      <button class="btn ar-btn" id="start-ar-btn" onclick="startAR()">
+        <span>📱</span>
+        <span id="ar-btn-text">AR開始</span>
       </button>
-      <button class="btn" onclick="clearAllObjects()">
+      <button class="btn" id="place-model-btn" onclick="placeWarehouseModel()" disabled>
+        <span>🏗️</span>
+        <span>廃倉庫配置</span>
+      </button>
+      <button class="btn" onclick="clearModels()">
         <span>🗑️</span>
-        <span>全削除</span>
+        <span>削除</span>
       </button>
-      <button class="btn" onclick="takeScreenshot()">
+      <button class="btn primary" onclick="takeScreenshot()">
         <span>📸</span>
         <span>スクショ</span>
       </button>
@@ -402,16 +448,20 @@
   
   <div class="loading show" id="loading">
     <div class="loading-spinner"></div>
-    <div>AR環境を初期化中...</div>
+    <div>プラットフォーム検出中...</div>
   </div>
 
-  <!-- AR Hit Test Component -->
+  <!-- iOS用AR Quick Look リンク (非表示) -->
+  <a id="ios-ar-link" class="ios-ar-link" rel="ar" href="#">
+    <img id="ios-ar-img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" alt="AR View">
+  </a>
+
+  <!-- AR Hit Test Component for A-Frame -->
   <script>
     AFRAME.registerComponent('ar-hit-test', {
       init: function () {
         this.xrHitTestSource = null;
         this.viewerSpace = null;
-        this.hitTestResults = [];
         this.currentPose = null;
         this.isSessionActive = false;
         
@@ -445,10 +495,10 @@
           });
           this.xrHitTestSource = hitTestSource;
           this.debugLog('Hit Test 初期化完了', 'success');
-          updateStatus('plane-status', '平面検出: 準備完了', true);
+          updateStatus('ar-support-status', 'ARサポート: アクティブ', true);
         } catch (error) {
           this.debugLog(`Hit Test エラー: ${error.message}`, 'error');
-          updateStatus('plane-status', '平面検出: エラー', false);
+          updateStatus('ar-support-status', 'ARサポート: エラー', false);
         }
       },
       
@@ -468,33 +518,25 @@
           if (pose) {
             this.currentPose = pose;
             
-            // クロスヘアを表示・更新
-            const crosshair = document.getElementById('crosshair');
-            crosshair.style.display = 'block';
-            crosshair.classList.add('ready');
-            
             // 配置ボタンを有効化
-            const placeBtn = document.getElementById('place-btn');
+            const placeBtn = document.getElementById('place-model-btn');
             placeBtn.disabled = false;
-            placeBtn.classList.add('ar-active');
             
             // ステータス更新
-            document.getElementById('ar-status-text').textContent = '床面検出中 - タップで配置';
+            document.getElementById('ar-status-text').textContent = '床面検出 - タップで配置';
             const indicator = document.getElementById('ar-status-indicator');
             indicator.classList.add('active');
             
-            updateStatus('plane-status', '平面検出: アクティブ', true);
+            // 説明表示
+            const instructions = document.getElementById('ar-instructions');
+            instructions.classList.add('show');
           }
         } else {
-          // 平面が検出されていない状態
-          const crosshair = document.getElementById('crosshair');
-          crosshair.classList.remove('ready');
-          
-          const placeBtn = document.getElementById('place-btn');
+          const placeBtn = document.getElementById('place-model-btn');
           placeBtn.disabled = true;
-          placeBtn.classList.remove('ar-active');
           
-          updateStatus('plane-status', '平面検出: スキャン中', true);
+          const instructions = document.getElementById('ar-instructions');
+          instructions.classList.remove('show');
         }
       },
       
@@ -511,11 +553,17 @@
   </script>
 
   <script>
+    // プラットフォーム検出
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isAndroid = /Android/.test(navigator.userAgent);
+    const isMobile = isIOS || isAndroid;
+    
     // デバッグ設定
     let debugMode = true;
     const debugLogs = [];
-    let placedObjects = [];
-    let objectCounter = 0;
+    let placedModels = [];
+    let currentModelScale = 1.0;
+    let currentPlatform = 'unknown';
     
     // グローバル関数として定義
     window.debugLog = function(message, type = 'info') {
@@ -523,14 +571,10 @@
       const logEntry = { message, type, timestamp };
       debugLogs.push(logEntry);
       
-      // コンソールにも出力
       console.log(`[${timestamp}] [${type.toUpperCase()}] ${message}`);
-      
-      // 画面のデバッグパネルに表示
       updateDebugPanel();
       
-      // デバッグログの上限管理
-      if (debugLogs.length > 30) {
+      if (debugLogs.length > 25) {
         debugLogs.shift();
       }
     }
@@ -545,7 +589,6 @@
         return `<div class="${className}">[${log.timestamp}] ${log.message}</div>`;
       }).join('');
       
-      // 最新ログを表示
       logsContainer.scrollTop = logsContainer.scrollHeight;
     }
     
@@ -558,141 +601,245 @@
       }
     }
     
-    // オブジェクト配置
-    function placeObject() {
+    // プラットフォーム初期化
+    function initializePlatform() {
+      let platformName = '';
+      let arMethod = '';
+      
+      if (isIOS) {
+        platformName = 'iOS';
+        arMethod = 'AR Quick Look + model-viewer';
+        currentPlatform = 'ios';
+        
+        // model-viewerを表示、A-Frameを非表示
+        document.getElementById('model-viewer-container').style.display = 'block';
+        document.getElementById('aframe-container').style.display = 'none';
+        
+        debugLog('iOS検出: model-viewer ARモードを使用', 'success');
+        setupiOSAR();
+        
+      } else if (isAndroid) {
+        platformName = 'Android';
+        arMethod = 'WebXR + A-Frame';
+        currentPlatform = 'android';
+        
+        // A-Frameを表示、model-viewerを非表示
+        document.getElementById('aframe-container').style.display = 'block';
+        document.getElementById('model-viewer-container').style.display = 'none';
+        
+        debugLog('Android検出: A-Frame WebXRモードを使用', 'success');
+        setupAndroidAR();
+        
+      } else {
+        platformName = 'Desktop';
+        arMethod = 'A-Frame VRモード（テスト用）';
+        currentPlatform = 'desktop';
+        
+        document.getElementById('aframe-container').style.display = 'block';
+        document.getElementById('model-viewer-container').style.display = 'none';
+        
+        debugLog('デスクトップ検出: A-Frame VRテストモードを使用', 'info');
+        setupDesktopMode();
+      }
+      
+      // UI更新
+      document.getElementById('platform-info').textContent = platformName;
+      updateStatus('platform-status', `プラットフォーム: ${platformName}`, true);
+      
+      const platformSpecificInfo = document.getElementById('platform-specific-info');
+      platformSpecificInfo.innerHTML = `
+        <p style="margin: 0; font-size: 12px; color: #ccc;">
+          <strong>AR方式:</strong> ${arMethod}
+        </p>
+      `;
+      
+      debugLog(`プラットフォーム初期化完了: ${platformName}`, 'success');
+    }
+    
+    // iOS AR セットアップ
+    function setupiOSAR() {
+      const viewer = document.getElementById('warehouse-viewer');
+      const arButton = document.getElementById('ar-button');
+      
+      // model-viewer イベントリスナー
+      viewer.addEventListener('load', () => {
+        debugLog('廃倉庫モデル読み込み完了 (model-viewer)', 'success');
+        updateStatus('model-status', 'モデル: 読み込み完了', true);
+        document.getElementById('ar-status-text').textContent = 'AR準備完了';
+      });
+      
+      viewer.addEventListener('ar-status', (event) => {
+        if (event.detail.status === 'session-started') {
+          debugLog('iOS ARセッション開始', 'success');
+          document.getElementById('ar-status-text').textContent = 'ARモード アクティブ';
+          const indicator = document.getElementById('ar-status-indicator');
+          indicator.classList.add('active');
+        }
+      });
+      
+      // ARボタンの設定
+      arButton.style.background = 'linear-gradient(135deg, #00d4ff 0%, #0099cc 100%)';
+      arButton.style.color = 'white';
+      
+      updateStatus('ar-support-status', 'ARサポート: model-viewer', true);
+      
+      // スケール調整コントロール表示
+      document.getElementById('scale-controls').classList.add('show');
+    }
+    
+    // Android AR セットアップ
+    function setupAndroidAR() {
+      // WebXR サポート確認
+      if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+          if (supported) {
+            debugLog('WebXR AR サポートを確認', 'success');
+            updateStatus('ar-support-status', 'ARサポート: WebXR', true);
+          } else {
+            debugLog('WebXR AR 非サポート、AR.jsフォールバック', 'warning');
+            updateStatus('ar-support-status', 'ARサポート: AR.js', true);
+          }
+        }).catch(error => {
+          debugLog(`WebXR確認エラー: ${error.message}`, 'error');
+          updateStatus('ar-support-status', 'ARサポート: エラー', false);
+        });
+      } else {
+        debugLog('WebXR 未対応、AR.jsを使用', 'warning');
+        updateStatus('ar-support-status', 'ARサポート: AR.js', true);
+      }
+    }
+    
+    // デスクトップモード セットアップ
+    function setupDesktopMode() {
+      debugLog('デスクトップテストモード', 'info');
+      updateStatus('ar-support-status', 'ARサポート: テストモード', true);
+      
+      // デスクトップでは即座に配置可能
+      setTimeout(() => {
+        document.getElementById('place-model-btn').disabled = false;
+        document.getElementById('ar-status-text').textContent = 'テストモード - 配置可能';
+      }, 2000);
+    }
+    
+    // AR開始
+    function startAR() {
+      if (currentPlatform === 'ios') {
+        // iOS: model-viewerのARボタンをトリガー
+        const arButton = document.getElementById('ar-button');
+        if (arButton) {
+          arButton.click();
+          debugLog('iOS AR開始', 'info');
+        }
+      } else {
+        // Android/Desktop: A-Frame ARモード
+        const scene = document.querySelector('a-scene');
+        if (scene) {
+          scene.enterVR();
+          debugLog('A-Frame AR開始', 'info');
+        }
+      }
+      
+      document.getElementById('ar-btn-text').textContent = 'AR実行中';
+    }
+    
+    // 廃倉庫モデル配置
+    function placeWarehouseModel() {
+      if (currentPlatform === 'ios') {
+        debugLog('iOS: model-viewerで直接AR表示', 'info');
+        return;
+      }
+      
+      // Android/Desktop: A-Frameでモデル配置
       const scene = document.querySelector('a-scene');
       const hitTestComponent = scene.components['ar-hit-test'];
       
-      if (!hitTestComponent) {
-        debugLog('Hit Test コンポーネントが見つかりません', 'error');
-        return;
+      let position = { x: 0, y: 0, z: -3 }; // デフォルト位置
+      
+      if (hitTestComponent && hitTestComponent.getCurrentPose()) {
+        const pose = hitTestComponent.getCurrentPose();
+        position = pose.transform.position;
+        debugLog('Hit Test座標を使用してモデル配置', 'success');
+      } else {
+        debugLog('デフォルト座標でモデル配置', 'info');
       }
       
-      const pose = hitTestComponent.getCurrentPose();
-      if (!pose) {
-        debugLog('有効な平面が検出されていません', 'warning');
-        return;
-      }
+      // 廃倉庫モデルエンティティ作成
+      const warehouseEntity = document.createElement('a-entity');
       
-      // オブジェクトの種類をランダムに選択
-      const objectTypes = [
-        { type: 'box', color: '#ff6b6b', scale: '0.3 0.3 0.3', name: '赤い立方体' },
-        { type: 'sphere', color: '#4ecdc4', scale: '0.25 0.25 0.25', name: '青い球体' },
-        { type: 'cylinder', color: '#45b7d1', scale: '0.2 0.4 0.2', name: '青い円柱' },
-        { type: 'cone', color: '#96ceb4', scale: '0.25 0.5 0.25', name: '緑い円錐' },
-        { type: 'octahedron', color: '#ffd93d', scale: '0.3 0.3 0.3', name: '黄色い八面体' }
-      ];
-      
-      const objectType = objectTypes[Math.floor(Math.random() * objectTypes.length)];
-      objectCounter++;
-      
-      // 3Dオブジェクトを作成
-      const entity = document.createElement(`a-${objectType.type}`);
-      
-      // 位置を設定（床面に配置）
-      const position = pose.transform.position;
-      entity.setAttribute('position', `${position.x} ${position.y + 0.1} ${position.z}`);
-      
-      // その他の属性
-      entity.setAttribute('color', objectType.color);
-      entity.setAttribute('scale', objectType.scale);
-      entity.setAttribute('shadow', 'cast: true; receive: false');
+      // GLTFモデルを設定
+      warehouseEntity.setAttribute('gltf-model', 'url(./models/abandoned_warehouse_-_interior_scene.glb)');
+      warehouseEntity.setAttribute('position', `${position.x} ${position.y} ${position.z}`);
+      warehouseEntity.setAttribute('scale', `${currentModelScale} ${currentModelScale} ${currentModelScale}`);
+      warehouseEntity.setAttribute('rotation', '0 0 0');
+      warehouseEntity.setAttribute('shadow', 'cast: true; receive: true');
       
       // アニメーション追加
-      entity.setAttribute('animation', 
-        'property: rotation; to: 0 360 0; loop: true; dur: 4000');
-      entity.setAttribute('animation__hover', 
-        'property: position; to: ' + position.x + ' ' + (position.y + 0.2) + ' ' + position.z + 
-        '; dir: alternate; loop: true; dur: 2000');
+      warehouseEntity.setAttribute('animation', 
+        'property: rotation; to: 0 360 0; loop: true; dur: 30000');
       
       // IDを設定
-      const objectId = `ar-object-${objectCounter}`;
-      entity.setAttribute('id', objectId);
+      const modelId = `warehouse-${Date.now()}`;
+      warehouseEntity.setAttribute('id', modelId);
       
       // シーンに追加
-      document.getElementById('ar-world').appendChild(entity);
+      document.getElementById('ar-world').appendChild(warehouseEntity);
       
       // 配置リストに追加
-      placedObjects.push({
-        id: objectId,
-        name: objectType.name,
-        element: entity
+      placedModels.push({
+        id: modelId,
+        name: `廃倉庫 (${Math.round(currentModelScale * 100)}%)`,
+        element: warehouseEntity
       });
       
-      debugLog(`オブジェクト配置: ${objectType.name} (${objectId})`, 'success');
-      updateObjectsList();
-      updateStatus('objects-status', `配置数: ${placedObjects.length}`, true);
+      debugLog(`廃倉庫モデル配置完了: ${modelId}`, 'success');
+      updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
       
-      // 配置成功のフィードバック
+      // フィードバック
       showPlacementFeedback();
     }
     
-    // 配置成功のフィードバック
+    // 配置成功フィードバック
     function showPlacementFeedback() {
-      const crosshair = document.getElementById('crosshair');
-      crosshair.style.transform = 'translate(-50%, -50%) scale(1.5)';
-      crosshair.style.borderColor = '#6bcf7f';
+      const instructions = document.getElementById('ar-instructions');
+      const originalText = instructions.querySelector('#instruction-text').textContent;
+      instructions.querySelector('#instruction-text').textContent = '✅ 配置完了！';
       
       setTimeout(() => {
-        crosshair.style.transform = 'translate(-50%, -50%) scale(1)';
-        crosshair.style.borderColor = 'rgba(0, 212, 255, 0.8)';
-      }, 300);
+        instructions.querySelector('#instruction-text').textContent = originalText;
+      }, 2000);
     }
     
-    // オブジェクト一覧更新
-    function updateObjectsList() {
-      const container = document.getElementById('objects-container');
-      const listPanel = document.getElementById('objects-list');
+    // スケール変更
+    function changeScale(scale) {
+      currentModelScale = scale;
+      debugLog(`モデルスケール変更: ${scale * 100}%`, 'info');
       
-      if (placedObjects.length > 0) {
-        listPanel.style.display = 'block';
-        container.innerHTML = placedObjects.map(obj => `
-          <div class="object-item">
-            <span>${obj.name}</span>
-            <button class="delete-btn" onclick="deleteObject('${obj.id}')">削除</button>
-          </div>
-        `).join('');
-      } else {
-        listPanel.style.display = 'none';
+      if (currentPlatform === 'ios') {
+        // model-viewerのスケール調整は制限があるため、ログのみ
+        debugLog('iOS: スケール調整はAR配置時に反映されます', 'info');
       }
     }
     
-    // 個別オブジェクト削除
-    function deleteObject(objectId) {
-      const index = placedObjects.findIndex(obj => obj.id === objectId);
-      if (index !== -1) {
-        const obj = placedObjects[index];
-        if (obj.element.parentNode) {
-          obj.element.remove();
-        }
-        placedObjects.splice(index, 1);
-        debugLog(`オブジェクト削除: ${obj.name}`, 'info');
-        updateObjectsList();
-        updateStatus('objects-status', `配置数: ${placedObjects.length}`, true);
-      }
-    }
-    
-    // 全オブジェクト削除
-    function clearAllObjects() {
-      placedObjects.forEach(obj => {
-        if (obj.element.parentNode) {
-          obj.element.remove();
+    // 全モデル削除
+    function clearModels() {
+      placedModels.forEach(model => {
+        if (model.element.parentNode) {
+          model.element.remove();
         }
       });
-      placedObjects = [];
-      debugLog('全オブジェクトを削除', 'info');
-      updateObjectsList();
-      updateStatus('objects-status', '配置数: 0', true);
+      placedModels = [];
+      debugLog('全モデルを削除', 'info');
+      updateStatus('model-status', '配置済み: 0', true);
     }
     
     // カメラ確認
     async function checkCamera() {
       try {
-        debugLog('カメラアクセスを試行', 'info');
+        debugLog('カメラアクセス確認中', 'info');
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(track => track.stop());
         updateStatus('camera-status', 'カメラ: OK', true);
-        debugLog('カメラアクセス成功', 'success');
+        debugLog('カメラアクセス確認済み', 'success');
         return true;
       } catch (error) {
         updateStatus('camera-status', 'カメラ: エラー', false);
@@ -701,29 +848,13 @@
       }
     }
     
-    // WebXR確認
-    function checkWebXR() {
-      if (navigator.xr) {
-        navigator.xr.isSessionSupported('immersive-ar').then(supported => {
-          if (supported) {
-            updateStatus('webxr-status', 'WebXR: AR対応', true);
-            debugLog('WebXR AR サポートを確認', 'success');
-          } else {
-            updateStatus('webxr-status', 'WebXR: AR非対応', false);
-            debugLog('WebXR AR 非サポート', 'warning');
-          }
-        }).catch(error => {
-          updateStatus('webxr-status', 'WebXR: エラー', false);
-          debugLog(`WebXR確認エラー: ${error.message}`, 'error');
-        });
-      } else {
-        updateStatus('webxr-status', 'WebXR: 未対応', false);
-        debugLog('WebXR 未サポート', 'warning');
-      }
-    }
-    
     // スクリーンショット
     function takeScreenshot() {
+      if (currentPlatform === 'ios') {
+        debugLog('iOS: model-viewerスクリーンショット機能制限', 'warning');
+        return;
+      }
+      
       const scene = document.querySelector('a-scene');
       if (!scene || !scene.canvas) {
         debugLog('Canvasが見つかりません', 'error');
@@ -736,13 +867,11 @@
           if (blob) {
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.download = `ar-screenshot-${Date.now()}.png`;
+            link.download = `warehouse-ar-${Date.now()}.png`;
             link.href = url;
             link.click();
             URL.revokeObjectURL(url);
             debugLog('スクリーンショット保存成功', 'success');
-          } else {
-            debugLog('スクリーンショットの生成に失敗', 'error');
           }
         });
       } catch (error) {
@@ -753,85 +882,67 @@
     // エラーハンドリング
     window.addEventListener('error', (event) => {
       debugLog(`JavaScript エラー: ${event.error?.message || event.message}`, 'error');
-      console.error('Global error:', event.error);
-    });
-    
-    window.addEventListener('unhandledrejection', (event) => {
-      debugLog(`Promise rejection: ${event.reason}`, 'error');
-      console.error('Unhandled promise rejection:', event.reason);
     });
     
     // 初期化
     document.addEventListener('DOMContentLoaded', () => {
       debugLog('DOM読み込み完了', 'success');
       
-      checkCamera();
-      checkWebXR();
+      // プラットフォーム検出・初期化
+      initializePlatform();
+      
+      // カメラ確認
+      if (isMobile) {
+        checkCamera();
+      } else {
+        updateStatus('camera-status', 'カメラ: デスクトップ', true);
+      }
       
       // A-Frame確認
       if (window.AFRAME) {
         debugLog(`A-Frame バージョン: ${AFRAME.version}`, 'success');
-      } else {
-        debugLog('A-Frame が見つかりません', 'error');
-      }
-    });
-    
-    // A-Frameシーンイベント
-    document.addEventListener('DOMContentLoaded', () => {
-      const scene = document.querySelector('a-scene');
-      
-      if (scene) {
-        scene.addEventListener('loaded', () => {
-          debugLog('A-Frameシーン読み込み完了', 'success');
-          document.getElementById('loading').classList.remove('show');
-          document.getElementById('ar-status-text').textContent = 'AR準備完了';
-        });
-        
-        scene.addEventListener('renderstart', () => {
-          debugLog('A-Frameレンダリング開始', 'info');
-        });
-        
-        scene.addEventListener('enter-vr', () => {
-          debugLog('ARモード開始', 'success');
-          document.getElementById('ar-status-text').textContent = 'ARモード アクティブ';
-          const indicator = document.getElementById('ar-status-indicator');
-          indicator.classList.add('active');
-        });
-        
-        scene.addEventListener('exit-vr', () => {
-          debugLog('ARモード終了', 'info');
-          document.getElementById('ar-status-text').textContent = 'ARモード 終了';
-          const indicator = document.getElementById('ar-status-indicator');
-          indicator.classList.remove('active');
-        });
-      }
-    });
-    
-    // タッチ・クリックでオブジェクト配置
-    document.addEventListener('click', (event) => {
-      // UIボタンのクリックは除外
-      if (event.target.closest('.btn') || event.target.closest('.debug-panel') || event.target.closest('.info-panel')) {
-        return;
       }
       
-      const placeBtn = document.getElementById('place-btn');
-      if (!placeBtn.disabled) {
-        placeObject();
-      }
+      setTimeout(() => {
+        document.getElementById('loading').classList.remove('show');
+        document.getElementById('ar-status-text').textContent = 'プラットフォーム設定完了';
+      }, 2000);
     });
     
-    // タッチイベントも処理
-    document.addEventListener('touchend', (event) => {
-      if (event.target.closest('.btn') || event.target.closest('.debug-panel') || event.target.closest('.info-panel')) {
-        return;
-      }
-      
-      event.preventDefault();
-      const placeBtn = document.getElementById('place-btn');
-      if (!placeBtn.disabled) {
-        placeObject();
-      }
-    });
+    // A-Frameイベント（Android/Desktop用）
+    if (!isIOS) {
+      document.addEventListener('DOMContentLoaded', () => {
+        const scene = document.querySelector('a-scene');
+        
+        if (scene) {
+          scene.addEventListener('loaded', () => {
+            debugLog('A-Frameシーン読み込み完了', 'success');
+          });
+          
+          scene.addEventListener('enter-vr', () => {
+            debugLog('A-Frame ARモード開始', 'success');
+            document.getElementById('ar-status-text').textContent = 'ARモード アクティブ';
+            const indicator = document.getElementById('ar-status-indicator');
+            indicator.classList.add('active');
+          });
+        }
+      });
+    }
+    
+    // タッチ・クリックでモデル配置（A-Frame用）
+    if (!isIOS) {
+      document.addEventListener('click', (event) => {
+        if (event.target.closest('.btn') || event.target.closest('.debug-panel') || 
+            event.target.closest('.info-panel') || event.target.closest('.model-scale-controls')) {
+          return;
+        }
+        
+        const placeBtn = document.getElementById('place-model-btn');
+        if (!placeBtn.disabled) {
+          placeWarehouseModel();
+        }
+      });
+    }
   </script>
 </body>
 </html>

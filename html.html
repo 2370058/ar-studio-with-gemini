@@ -332,6 +332,169 @@
     .scale-btn:hover {
       background: rgba(255, 255, 255, 0.3);
     }
+
+    /* オブジェクト管理パネル */
+    .object-manager {
+      position: absolute;
+      top: 50%;
+      left: 20px;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      padding: 15px;
+      border-radius: 12px;
+      max-width: 280px;
+      pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .object-manager h4 {
+      color: #00d4ff;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .object-item {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .object-item:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .object-item.selected {
+      background: rgba(0, 212, 255, 0.3);
+      border: 1px solid rgba(0, 212, 255, 0.6);
+    }
+
+    .object-priority {
+      background: #ff6b6b;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      margin-left: 8px;
+    }
+
+    .object-priority.high {
+      background: #ff6b6b;
+    }
+
+    .object-priority.medium {
+      background: #ffd93d;
+      color: #333;
+    }
+
+    .object-priority.low {
+      background: #6bcf7f;
+    }
+
+    /* タッチ情報パネル */
+    .touch-info-panel {
+      position: absolute;
+      bottom: 200px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(15px);
+      color: white;
+      padding: 20px;
+      border-radius: 15px;
+      max-width: 320px;
+      text-align: center;
+      pointer-events: auto;
+      border: 2px solid rgba(0, 212, 255, 0.5);
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    .touch-info-panel h4 {
+      color: #00d4ff;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .touch-info-panel p {
+      margin-bottom: 15px;
+      font-size: 13px;
+      color: #e0e0e0;
+    }
+
+    .touch-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .touch-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .touch-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(1.05);
+    }
+
+    /* インタラクションエフェクト */
+    .object-highlight {
+      animation: highlight-pulse 2s infinite;
+    }
+
+    @keyframes highlight-pulse {
+      0%, 100% { 
+        filter: drop-shadow(0 0 5px #00d4ff); 
+      }
+      50% { 
+        filter: drop-shadow(0 0 20px #00d4ff) drop-shadow(0 0 30px #00d4ff); 
+      }
+    }
+
+    .touch-ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(0, 212, 255, 0.6);
+      animation: ripple 0.6s linear;
+      pointer-events: none;
+    }
+
+    @keyframes ripple {
+      0% {
+        transform: scale(0);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
   </style>
 </head>
 <body>
@@ -356,8 +519,17 @@
           <!-- 配置された廃倉庫モデルがここに追加される -->
         </a-entity>
         
-        <!-- カメラ -->
-        <a-entity id="camera" camera look-controls wasd-controls="enabled: false" position="0 1.6 0"></a-entity>
+        <!-- カメラ（レイキャスター付き） -->
+        <a-entity 
+          id="camera" 
+          camera 
+          look-controls 
+          wasd-controls="enabled: false" 
+          position="0 1.6 0"
+          raycaster="objects: .interactive; far: 100; interval: 100"
+          cursor="rayOrigin: mouse; fuse: false"
+          ar-interaction-handler
+        ></a-entity>
       </a-scene>
     </div>
 
@@ -426,18 +598,41 @@
       <button class="scale-btn" onclick="changeScale(2.0)">大 (200%)</button>
     </div>
     
+    <!-- 配置オブジェクト管理パネル -->
+    <div class="object-manager" id="object-manager" style="display: none;">
+      <h4>🎯 インタラクティブ オブジェクト</h4>
+      <div id="object-list">
+        <!-- オブジェクト一覧がここに表示 -->
+      </div>
+    </div>
+
+    <!-- タッチ情報パネル -->
+    <div class="touch-info-panel" id="touch-info-panel" style="display: none;">
+      <h4 id="touch-object-name">オブジェクト名</h4>
+      <p id="touch-object-desc">説明がここに表示されます</p>
+      <div class="touch-actions">
+        <button class="touch-btn" onclick="highlightObject()">🔆 ハイライト</button>
+        <button class="touch-btn" onclick="animateObject()">🎭 アニメーション</button>
+        <button class="touch-btn" onclick="deleteSelectedObject()">🗑️ 削除</button>
+      </div>
+    </div>
+    
     <div class="controls">
       <button class="btn ar-btn" id="start-ar-btn" onclick="startAR()">
         <span>📱</span>
         <span id="ar-btn-text">AR開始</span>
       </button>
-      <button class="btn" id="place-model-btn" onclick="placeWarehouseModel()" disabled>
+      <button class="btn" id="place-warehouse-btn" onclick="placeWarehouseModel()" disabled>
         <span>🏗️</span>
         <span>廃倉庫配置</span>
       </button>
+      <button class="btn primary" id="place-interactive-btn" onclick="placeInteractiveObject()" disabled>
+        <span>⚡</span>
+        <span>機械配置</span>
+      </button>
       <button class="btn" onclick="clearModels()">
         <span>🗑️</span>
-        <span>削除</span>
+        <span>全削除</span>
       </button>
       <button class="btn primary" onclick="takeScreenshot()">
         <span>📸</span>
@@ -458,6 +653,7 @@
 
   <!-- AR Hit Test Component for A-Frame -->
   <script>
+    // AR Hit Test Component
     AFRAME.registerComponent('ar-hit-test', {
       init: function () {
         this.xrHitTestSource = null;
@@ -519,8 +715,8 @@
             this.currentPose = pose;
             
             // 配置ボタンを有効化
-            const placeBtn = document.getElementById('place-model-btn');
-            placeBtn.disabled = false;
+            document.getElementById('place-warehouse-btn').disabled = false;
+            document.getElementById('place-interactive-btn').disabled = false;
             
             // ステータス更新
             document.getElementById('ar-status-text').textContent = '床面検出 - タップで配置';
@@ -532,8 +728,8 @@
             instructions.classList.add('show');
           }
         } else {
-          const placeBtn = document.getElementById('place-model-btn');
-          placeBtn.disabled = true;
+          document.getElementById('place-warehouse-btn').disabled = true;
+          document.getElementById('place-interactive-btn').disabled = true;
           
           const instructions = document.getElementById('ar-instructions');
           instructions.classList.remove('show');
@@ -542,6 +738,167 @@
       
       getCurrentPose: function () {
         return this.currentPose;
+      },
+      
+      debugLog: function (message, type = 'info') {
+        if (window.debugLog) {
+          window.debugLog(message, type);
+        }
+      }
+    });
+
+    // AR Interaction Handler Component
+    AFRAME.registerComponent('ar-interaction-handler', {
+      init: function () {
+        this.selectedObject = null;
+        this.interactiveObjects = new Map();
+        
+        // レイキャストイベントリスナー
+        this.el.addEventListener('raycaster-intersected', this.onIntersected.bind(this));
+        this.el.addEventListener('raycaster-intersected-cleared', this.onIntersectedCleared.bind(this));
+        
+        // クリック/タッチイベントリスナー
+        this.el.addEventListener('click', this.onObjectClicked.bind(this));
+        
+        this.debugLog('AR Interaction Handler 初期化', 'info');
+      },
+      
+      onIntersected: function (evt) {
+        const intersectedEl = evt.detail.el;
+        if (intersectedEl.classList.contains('interactive')) {
+          this.highlightObject(intersectedEl, true);
+        }
+      },
+      
+      onIntersectedCleared: function (evt) {
+        const intersectedEl = evt.detail.el;
+        if (intersectedEl.classList.contains('interactive')) {
+          this.highlightObject(intersectedEl, false);
+        }
+      },
+      
+      onObjectClicked: function (evt) {
+        const intersections = this.el.components.raycaster.intersections;
+        if (intersections.length === 0) return;
+        
+        // 優先度順にソート（距離が近い順 + 優先度）
+        const sortedIntersections = intersections
+          .filter(intersection => intersection.object.el.classList.contains('interactive'))
+          .sort((a, b) => {
+            const priorityA = parseInt(a.object.el.getAttribute('data-priority') || '0');
+            const priorityB = parseInt(b.object.el.getAttribute('data-priority') || '0');
+            
+            // 優先度が高い方を優先、同じ場合は距離が近い方
+            if (priorityA !== priorityB) {
+              return priorityB - priorityA; // 高い優先度が先
+            }
+            return a.distance - b.distance; // 近い距離が先
+          });
+        
+        if (sortedIntersections.length > 0) {
+          const selectedEl = sortedIntersections[0].object.el;
+          this.selectObject(selectedEl);
+          this.showTouchRipple(evt.detail.intersection.point);
+        }
+      },
+      
+      selectObject: function (element) {
+        this.selectedObject = element;
+        const objectData = this.interactiveObjects.get(element.id);
+        
+        if (objectData) {
+          this.debugLog(`オブジェクト選択: ${objectData.name}`, 'info');
+          this.showObjectInfo(objectData);
+          this.updateObjectManager();
+          
+          // 選択エフェクト
+          this.addSelectionEffect(element);
+        }
+      },
+      
+      highlightObject: function (element, highlight) {
+        if (highlight) {
+          element.classList.add('object-highlight');
+        } else {
+          element.classList.remove('object-highlight');
+        }
+      },
+      
+      addSelectionEffect: function (element) {
+        // 既存の選択エフェクトをクリア
+        document.querySelectorAll('.interactive').forEach(el => {
+          el.classList.remove('object-highlight');
+        });
+        
+        // 新しい選択エフェクトを追加
+        element.classList.add('object-highlight');
+      },
+      
+      showTouchRipple: function (position) {
+        const ripple = document.createElement('div');
+        ripple.className = 'touch-ripple';
+        ripple.style.left = '50%';
+        ripple.style.top = '50%';
+        ripple.style.width = '20px';
+        ripple.style.height = '20px';
+        ripple.style.marginLeft = '-10px';
+        ripple.style.marginTop = '-10px';
+        
+        document.body.appendChild(ripple);
+        
+        setTimeout(() => {
+          document.body.removeChild(ripple);
+        }, 600);
+      },
+      
+      showObjectInfo: function (objectData) {
+        const panel = document.getElementById('touch-info-panel');
+        const nameEl = document.getElementById('touch-object-name');
+        const descEl = document.getElementById('touch-object-desc');
+        
+        nameEl.textContent = objectData.name;
+        descEl.textContent = objectData.description;
+        
+        panel.style.display = 'block';
+        
+        // 3秒後に自動で閉じる
+        setTimeout(() => {
+          panel.style.display = 'none';
+        }, 3000);
+      },
+      
+      updateObjectManager: function () {
+        const container = document.getElementById('object-list');
+        const manager = document.getElementById('object-manager');
+        
+        if (this.interactiveObjects.size > 0) {
+          manager.style.display = 'block';
+          
+          container.innerHTML = Array.from(this.interactiveObjects.entries()).map(([id, data]) => {
+            const isSelected = this.selectedObject && this.selectedObject.id === id;
+            const priorityClass = data.priority >= 8 ? 'high' : data.priority >= 5 ? 'medium' : 'low';
+            const priorityText = data.priority >= 8 ? 'HIGH' : data.priority >= 5 ? 'MED' : 'LOW';
+            
+            return `
+              <div class="object-item ${isSelected ? 'selected' : ''}" onclick="window.selectObjectById('${id}')">
+                <span>${data.name}</span>
+                <span class="object-priority ${priorityClass}">${priorityText}</span>
+              </div>
+            `;
+          }).join('');
+        } else {
+          manager.style.display = 'none';
+        }
+      },
+      
+      registerObject: function (element, objectData) {
+        this.interactiveObjects.set(element.id, objectData);
+        this.updateObjectManager();
+      },
+      
+      unregisterObject: function (elementId) {
+        this.interactiveObjects.delete(elementId);
+        this.updateObjectManager();
       },
       
       debugLog: function (message, type = 'info') {
@@ -564,6 +921,51 @@
     let placedModels = [];
     let currentModelScale = 1.0;
     let currentPlatform = 'unknown';
+    let selectedObjectGlobal = null;
+    
+    // オブジェクトタイプ定義（優先度付き）
+    const objectTypes = {
+      warehouse: {
+        name: '廃倉庫',
+        description: 'ダークでミステリアスな廃倉庫。内部には古い機械が残されている。',
+        priority: 10,
+        color: '#8B4513',
+        interactive: true,
+        sounds: ['ambient_industrial.mp3', 'wind_through_ruins.mp3']
+      },
+      machine: {
+        name: '古い機械',
+        description: '錆び付いた工業用機械。まだ動作する可能性がある。',
+        priority: 8,
+        color: '#4A4A4A',
+        interactive: true,
+        sounds: ['machine_hum.mp3', 'gear_turning.mp3']
+      },
+      generator: {
+        name: '発電機',
+        description: '巨大な発電機。電気が流れているようだ。',
+        priority: 7,
+        color: '#FFD700',
+        interactive: true,
+        sounds: ['electric_hum.mp3', 'power_surge.mp3']
+      },
+      container: {
+        name: 'コンテナ',
+        description: '金属製のコンテナ。中に何かが入っているかもしれない。',
+        priority: 5,
+        color: '#87CEEB',
+        interactive: true,
+        sounds: ['metal_clang.mp3', 'container_open.mp3']
+      },
+      debris: {
+        name: '瓦礫',
+        description: '崩れた建材や金属片。注意深く調べる価値があるかもしれない。',
+        priority: 3,
+        color: '#696969',
+        interactive: false,
+        sounds: ['debris_shift.mp3']
+      }
+    };
     
     // グローバル関数として定義
     window.debugLog = function(message, type = 'info') {
@@ -576,6 +978,71 @@
       
       if (debugLogs.length > 25) {
         debugLogs.shift();
+      }
+    }
+    
+    // インタラクション管理用グローバル関数
+    window.selectObjectById = function(objectId) {
+      const scene = document.querySelector('a-scene');
+      const element = document.getElementById(objectId);
+      
+      if (element && scene.components['ar-interaction-handler']) {
+        scene.components['ar-interaction-handler'].selectObject(element);
+      }
+    }
+    
+    window.highlightObject = function() {
+      if (selectedObjectGlobal) {
+        selectedObjectGlobal.classList.add('object-highlight');
+        debugLog(`オブジェクトハイライト: ${selectedObjectGlobal.id}`, 'info');
+        
+        setTimeout(() => {
+          selectedObjectGlobal.classList.remove('object-highlight');
+        }, 3000);
+      }
+    }
+    
+    window.animateObject = function() {
+      if (selectedObjectGlobal) {
+        // ランダムアニメーションを適用
+        const animations = [
+          'property: rotation; to: 0 360 0; dur: 2000',
+          'property: scale; to: 1.2 1.2 1.2; dir: alternate; dur: 1000; loop: 2',
+          'property: position; to: ' + selectedObjectGlobal.getAttribute('position').x + ' ' + 
+           (parseFloat(selectedObjectGlobal.getAttribute('position').y) + 0.5) + ' ' + 
+           selectedObjectGlobal.getAttribute('position').z + '; dir: alternate; dur: 1500; loop: 2'
+        ];
+        
+        const randomAnimation = animations[Math.floor(Math.random() * animations.length)];
+        selectedObjectGlobal.setAttribute('animation', randomAnimation);
+        
+        debugLog(`オブジェクトアニメーション実行: ${selectedObjectGlobal.id}`, 'info');
+      }
+    }
+    
+    window.deleteSelectedObject = function() {
+      if (selectedObjectGlobal) {
+        const objectId = selectedObjectGlobal.id;
+        const index = placedModels.findIndex(model => model.id === objectId);
+        
+        if (index !== -1) {
+          selectedObjectGlobal.remove();
+          placedModels.splice(index, 1);
+          
+          // インタラクションハンドラーからも削除
+          const scene = document.querySelector('a-scene');
+          if (scene.components['ar-interaction-handler']) {
+            scene.components['ar-interaction-handler'].unregisterObject(objectId);
+          }
+          
+          debugLog(`オブジェクト削除: ${objectId}`, 'info');
+          selectedObjectGlobal = null;
+          
+          // タッチ情報パネルを閉じる
+          document.getElementById('touch-info-panel').style.display = 'none';
+          
+          updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
+        }
       }
     }
     
@@ -716,7 +1183,8 @@
       
       // デスクトップでは即座に配置可能
       setTimeout(() => {
-        document.getElementById('place-model-btn').disabled = false;
+        document.getElementById('place-warehouse-btn').disabled = false;
+        document.getElementById('place-interactive-btn').disabled = false;
         document.getElementById('ar-status-text').textContent = 'テストモード - 配置可能';
       }, 2000);
     }
@@ -763,6 +1231,9 @@
         debugLog('デフォルト座標でモデル配置', 'info');
       }
       
+      const warehouseData = objectTypes.warehouse;
+      const modelId = `warehouse-${Date.now()}`;
+      
       // 廃倉庫モデルエンティティ作成
       const warehouseEntity = document.createElement('a-entity');
       
@@ -773,13 +1244,14 @@
       warehouseEntity.setAttribute('rotation', '0 0 0');
       warehouseEntity.setAttribute('shadow', 'cast: true; receive: true');
       
-      // アニメーション追加
-      warehouseEntity.setAttribute('animation', 
-        'property: rotation; to: 0 360 0; loop: true; dur: 30000');
-      
-      // IDを設定
-      const modelId = `warehouse-${Date.now()}`;
+      // インタラクション設定
+      warehouseEntity.classList.add('interactive');
+      warehouseEntity.setAttribute('data-priority', warehouseData.priority.toString());
       warehouseEntity.setAttribute('id', modelId);
+      
+      // ゆっくりとした回転アニメーション
+      warehouseEntity.setAttribute('animation', 
+        'property: rotation; to: 0 360 0; loop: true; dur: 45000');
       
       // シーンに追加
       document.getElementById('ar-world').appendChild(warehouseEntity);
@@ -787,14 +1259,133 @@
       // 配置リストに追加
       placedModels.push({
         id: modelId,
-        name: `廃倉庫 (${Math.round(currentModelScale * 100)}%)`,
-        element: warehouseEntity
+        name: warehouseData.name,
+        type: 'warehouse',
+        element: warehouseEntity,
+        priority: warehouseData.priority
       });
       
-      debugLog(`廃倉庫モデル配置完了: ${modelId}`, 'success');
-      updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
+      // インタラクションハンドラーに登録
+      const interactionHandler = scene.components['ar-interaction-handler'];
+      if (interactionHandler) {
+        interactionHandler.registerObject(warehouseEntity, {
+          name: warehouseData.name,
+          description: warehouseData.description,
+          priority: warehouseData.priority,
+          type: 'warehouse'
+        });
+      }
       
-      // フィードバック
+      debugLog(`${warehouseData.name}配置完了: ${modelId}`, 'success');
+      updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
+      showPlacementFeedback();
+    }
+    
+    // インタラクティブオブジェクト配置
+    function placeInteractiveObject() {
+      if (currentPlatform === 'ios') {
+        debugLog('iOS: インタラクティブオブジェクトはA-Frame用機能です', 'warning');
+        return;
+      }
+      
+      const scene = document.querySelector('a-scene');
+      const hitTestComponent = scene.components['ar-hit-test'];
+      
+      let position = { x: Math.random() * 2 - 1, y: 0, z: -2 - Math.random() * 2 };
+      
+      if (hitTestComponent && hitTestComponent.getCurrentPose()) {
+        const pose = hitTestComponent.getCurrentPose();
+        position = {
+          x: pose.transform.position.x + (Math.random() * 2 - 1),
+          y: pose.transform.position.y,
+          z: pose.transform.position.z + (Math.random() * 2 - 1)
+        };
+        debugLog('Hit Test座標周辺にランダム配置', 'info');
+      }
+      
+      // ランダムにオブジェクトタイプを選択（廃倉庫以外）
+      const availableTypes = Object.keys(objectTypes).filter(key => key !== 'warehouse');
+      const selectedType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+      const objectData = objectTypes[selectedType];
+      
+      const objectId = `${selectedType}-${Date.now()}`;
+      
+      // 基本形状でオブジェクト作成
+      let objectEntity;
+      switch (selectedType) {
+        case 'machine':
+          objectEntity = document.createElement('a-box');
+          objectEntity.setAttribute('width', '0.8');
+          objectEntity.setAttribute('height', '1.2');
+          objectEntity.setAttribute('depth', '0.6');
+          break;
+        case 'generator':
+          objectEntity = document.createElement('a-cylinder');
+          objectEntity.setAttribute('radius', '0.5');
+          objectEntity.setAttribute('height', '1.5');
+          break;
+        case 'container':
+          objectEntity = document.createElement('a-box');
+          objectEntity.setAttribute('width', '1.5');
+          objectEntity.setAttribute('height', '1.0');
+          objectEntity.setAttribute('depth', '0.8');
+          break;
+        case 'debris':
+          objectEntity = document.createElement('a-dodecahedron');
+          objectEntity.setAttribute('radius', '0.3');
+          break;
+        default:
+          objectEntity = document.createElement('a-box');
+      }
+      
+      // 共通属性設定
+      objectEntity.setAttribute('position', `${position.x} ${position.y + 0.1} ${position.z}`);
+      objectEntity.setAttribute('color', objectData.color);
+      objectEntity.setAttribute('material', 'roughness: 0.8; metalness: 0.4');
+      objectEntity.setAttribute('shadow', 'cast: true; receive: false');
+      objectEntity.setAttribute('id', objectId);
+      
+      // インタラクション設定
+      if (objectData.interactive) {
+        objectEntity.classList.add('interactive');
+        objectEntity.setAttribute('data-priority', objectData.priority.toString());
+        
+        // ホバーアニメーション
+        objectEntity.setAttribute('animation__idle', 
+          'property: rotation; to: 0 360 0; loop: true; dur: ' + (8000 + Math.random() * 4000));
+      }
+      
+      // 配置時のアニメーション
+      objectEntity.setAttribute('animation__spawn', 
+        'property: scale; from: 0 0 0; to: 1 1 1; dur: 800; easing: easeOutBounce');
+      
+      // シーンに追加
+      document.getElementById('ar-world').appendChild(objectEntity);
+      
+      // 配置リストに追加
+      placedModels.push({
+        id: objectId,
+        name: objectData.name,
+        type: selectedType,
+        element: objectEntity,
+        priority: objectData.priority
+      });
+      
+      // インタラクションハンドラーに登録
+      if (objectData.interactive) {
+        const interactionHandler = scene.components['ar-interaction-handler'];
+        if (interactionHandler) {
+          interactionHandler.registerObject(objectEntity, {
+            name: objectData.name,
+            description: objectData.description,
+            priority: objectData.priority,
+            type: selectedType
+          });
+        }
+      }
+      
+      debugLog(`${objectData.name}配置完了: ${objectId} (優先度: ${objectData.priority})`, 'success');
+      updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
       showPlacementFeedback();
     }
     
@@ -929,20 +1520,75 @@
       });
     }
     
-    // タッチ・クリックでモデル配置（A-Frame用）
+    // タッチ・クリックでオブジェクト配置（A-Frame用）
     if (!isIOS) {
       document.addEventListener('click', (event) => {
+        // UIボタンのクリックは除外
         if (event.target.closest('.btn') || event.target.closest('.debug-panel') || 
-            event.target.closest('.info-panel') || event.target.closest('.model-scale-controls')) {
+            event.target.closest('.info-panel') || event.target.closest('.model-scale-controls') ||
+            event.target.closest('.object-manager') || event.target.closest('.touch-info-panel')) {
           return;
         }
         
-        const placeBtn = document.getElementById('place-model-btn');
-        if (!placeBtn.disabled) {
-          placeWarehouseModel();
+        // インタラクティブオブジェクトのクリックの場合は配置しない
+        const target = event.target;
+        if (target.classList && target.classList.contains('interactive')) {
+          return;
+        }
+        
+        // 配置ボタンが有効な場合のみ実行
+        const warehouseBtn = document.getElementById('place-warehouse-btn');
+        const interactiveBtn = document.getElementById('place-interactive-btn');
+        
+        if (!warehouseBtn.disabled || !interactiveBtn.disabled) {
+          // ランダムにどちらかを配置（50%の確率）
+          if (Math.random() < 0.5 && !warehouseBtn.disabled) {
+            placeWarehouseModel();
+          } else if (!interactiveBtn.disabled) {
+            placeInteractiveObject();
+          }
+        }
+      });
+      
+      // タッチイベントも処理
+      document.addEventListener('touchend', (event) => {
+        if (event.target.closest('.btn') || event.target.closest('.debug-panel') || 
+            event.target.closest('.info-panel') || event.target.closest('.model-scale-controls') ||
+            event.target.closest('.object-manager') || event.target.closest('.touch-info-panel')) {
+          return;
+        }
+        
+        event.preventDefault();
+        
+        // インタラクティブオブジェクトのタッチの場合は配置しない
+        const target = event.target;
+        if (target.classList && target.classList.contains('interactive')) {
+          return;
+        }
+        
+        const warehouseBtn = document.getElementById('place-warehouse-btn');
+        const interactiveBtn = document.getElementById('place-interactive-btn');
+        
+        if (!warehouseBtn.disabled || !interactiveBtn.disabled) {
+          if (Math.random() < 0.5 && !warehouseBtn.disabled) {
+            placeWarehouseModel();
+          } else if (!interactiveBtn.disabled) {
+            placeInteractiveObject();
+          }
         }
       });
     }
+    
+    // 選択されたオブジェクトの追跡
+    document.addEventListener('DOMContentLoaded', () => {
+      const scene = document.querySelector('a-scene');
+      if (scene) {
+        // インタラクションハンドラーのイベント監視
+        scene.addEventListener('object-selected', (event) => {
+          selectedObjectGlobal = event.detail.element;
+        });
+      }
+    });
   </script>
 </body>
 </html>

@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A-Frame VR → AR</title>
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ar.js@2.2.2/aframe/build/aframe-ar.min.js"></script>
+  <title>A-Frame AR 床面認識 オブジェクト配置</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
   <style>
     * {
       margin: 0;
@@ -32,19 +32,23 @@
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(10px);
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(15px);
       color: white;
       padding: 20px;
       border-radius: 15px;
       max-width: 320px;
       pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     .info-panel h2 {
-      font-size: 20px;
-      margin-bottom: 12px;
+      font-size: 18px;
+      margin-bottom: 15px;
       color: #00d4ff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     
     .info-panel p {
@@ -52,6 +56,95 @@
       line-height: 1.6;
       margin-bottom: 8px;
       color: #e0e0e0;
+    }
+    
+    .ar-status {
+      background: rgba(0, 212, 255, 0.1);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+    
+    .ar-status.active {
+      background: rgba(107, 207, 127, 0.2);
+      border-color: rgba(107, 207, 127, 0.5);
+    }
+    
+    .ar-status.error {
+      background: rgba(255, 107, 107, 0.1);
+      border-color: rgba(255, 107, 107, 0.3);
+    }
+    
+    /* デバッグパネル */
+    .debug-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(20, 20, 20, 0.95);
+      backdrop-filter: blur(10px);
+      color: white;
+      padding: 15px;
+      border-radius: 12px;
+      max-width: 400px;
+      max-height: 60vh;
+      overflow-y: auto;
+      pointer-events: auto;
+      font-size: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .debug-panel h3 {
+      color: #ff6b6b;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .debug-log {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border-left: 3px solid #4ecdc4;
+      font-size: 11px;
+    }
+    
+    .debug-error {
+      border-left-color: #ff6b6b;
+      background: rgba(255, 107, 107, 0.1);
+    }
+    
+    .debug-warning {
+      border-left-color: #ffd93d;
+      background: rgba(255, 217, 61, 0.1);
+    }
+    
+    .debug-success {
+      border-left-color: #6bcf7f;
+      background: rgba(107, 207, 127, 0.1);
+    }
+    
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+    
+    .status-item {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 8px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 11px;
+    }
+    
+    .status-ok {
+      background: rgba(107, 207, 127, 0.2);
+    }
+    
+    .status-error {
+      background: rgba(255, 107, 107, 0.2);
     }
     
     .controls {
@@ -89,36 +182,108 @@
       color: white;
     }
     
-    .scene-selector {
+    .btn.ar-active {
+      background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+      color: white;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 6px 20px rgba(0,212,255,0.4); }
+      50% { box-shadow: 0 6px 30px rgba(0,212,255,0.8); }
+    }
+    
+    .crosshair {
       position: absolute;
-      top: 20px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(0, 212, 255, 0.8);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 500;
+      transition: all 0.3s;
+    }
+    
+    .crosshair::before,
+    .crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(0, 212, 255, 0.8);
+    }
+    
+    .crosshair::before {
+      width: 16px;
+      height: 2px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    
+    .crosshair::after {
+      width: 2px;
+      height: 16px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    
+    .crosshair.ready {
+      border-color: #6bcf7f;
+      animation: ready-pulse 1s infinite;
+    }
+    
+    .crosshair.ready::before,
+    .crosshair.ready::after {
+      background: #6bcf7f;
+    }
+    
+    @keyframes ready-pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.2); }
+    }
+    
+    .placed-objects-list {
+      position: absolute;
+      bottom: 20px;
       right: 20px;
       background: rgba(0, 0, 0, 0.85);
       backdrop-filter: blur(10px);
       padding: 15px;
       border-radius: 12px;
       pointer-events: auto;
+      max-width: 300px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
     
-    .scene-option {
-      background: rgba(255, 255, 255, 0.15);
-      color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      cursor: pointer;
-      transition: all 0.3s;
+    .placed-objects-list h4 {
+      color: #00d4ff;
+      margin-bottom: 10px;
       font-size: 14px;
-      border: 2px solid transparent;
     }
     
-    .scene-option:hover {
-      background: rgba(255, 255, 255, 0.25);
+    .object-item {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     
-    .scene-option.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-color: white;
+    .delete-btn {
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
     }
     
     .loading {
@@ -133,10 +298,26 @@
       font-size: 18px;
       z-index: 2000;
       display: none;
+      text-align: center;
     }
     
     .loading.show {
       display: block;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #00d4ff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
@@ -147,192 +328,509 @@
     embedded 
     arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
     vr-mode-ui="enabled: false"
+    background="color: transparent"
+    ar-hit-test
   >
     <!-- 環境光 -->
-    <a-entity light="type: ambient; color: #FFF; intensity: 0.8"></a-entity>
-    <a-entity light="type: directional; color: #FFF; intensity: 0.5" position="1 1 0"></a-entity>
+    <a-entity light="type: ambient; color: #FFF; intensity: 0.6"></a-entity>
+    <a-entity light="type: directional; color: #FFF; intensity: 0.8" position="0 5 5"></a-entity>
     
-    <!-- VR環境1: 廃倉庫 -->
-    <a-entity id="environment1" visible="true">
-        <!-- 3Dモデル（廃倉庫） -->
-        <a-entity 
-          gltf-model="url(./models/abandoned_warehouse_-_interior_scene.glb)" 
-          position="0 0 0" 
-          scale="1 1 1"
-          animation-mixer
-        ></a-entity>
-        
-        <!-- 補助照明 -->
-        <a-entity light="type: point; color: #FFA500; intensity: 0.5" position="2 3 -2"></a-entity>
-        <a-entity light="type: point; color: #87CEEB; intensity: 0.3" position="-2 2 2"></a-entity>
-      </a-entity>
-  
-    
-    <!-- VR環境2: 未来的な空間 -->
-    <a-entity id="environment2" visible="false">
-      <!-- 床（グリッド） -->
-      <a-plane position="0 0 0" rotation="-90 0 0" width="5" height="5" color="#1a1a2e" 
-               material="shader: flat; wireframe: true; wireframeLinewidth: 2"></a-plane>
-      
-      <!-- 浮遊する立方体 -->
-      <a-box position="-1.5 1 -2" width="0.5" height="0.5" depth="0.5" 
-             color="#0f3460" animation="property: rotation; to: 0 360 360; loop: true; dur: 5000"></a-box>
-      <a-box position="0 1.5 -2.5" width="0.4" height="0.4" depth="0.4" 
-             color="#16213e" animation="property: rotation; to: 360 0 360; loop: true; dur: 4000"></a-box>
-      <a-box position="1.5 0.8 -2" width="0.6" height="0.6" depth="0.6" 
-             color="#533483" animation="property: rotation; to: 360 360 0; loop: true; dur: 6000"></a-box>
-      
-      <!-- ネオンリング -->
-      <a-torus position="0 1 -3" radius="1" radius-tubular="0.05" color="#00d4ff"
-               animation="property: rotation; to: 0 360 0; loop: true; dur: 8000"></a-torus>
-      
-      <!-- 光る球体 -->
-      <a-sphere position="0 2 -3" radius="0.3" color="#ff00ff" 
-                animation="property: scale; to: 1.2 1.2 1.2; dir: alternate; loop: true; dur: 2000"></a-sphere>
-    </a-entity>
-    
-    <!-- VR環境3: 自然の森 -->
-    <a-entity id="environment3" visible="false">
-      <!-- 草地 -->
-      <a-plane position="0 0 0" rotation="-90 0 0" width="6" height="6" color="#7CFC00"></a-plane>
-      
-      <!-- 木々（簡略化） -->
-      <a-cylinder position="-1.5 0.5 -2" radius="0.15" height="1.5" color="#8B4513"></a-cylinder>
-      <a-cone position="-1.5 1.8 -2" radius-bottom="0.5" radius-top="0" height="1" color="#228B22"></a-cone>
-      
-      <a-cylinder position="1.5 0.6 -2.5" radius="0.18" height="1.8" color="#8B4513"></a-cylinder>
-      <a-cone position="1.5 2.1 -2.5" radius-bottom="0.6" radius-top="0" height="1.2" color="#228B22"></a-cone>
-      
-      <a-cylinder position="0 0.4 -3" radius="0.12" height="1.2" color="#8B4513"></a-cylinder>
-      <a-cone position="0 1.4 -3" radius-bottom="0.4" radius-top="0" height="0.8" color="#228B22"></a-cone>
-      
-      <!-- 花 -->
-      <a-sphere position="-0.5 0.1 -1" radius="0.08" color="#FF1493"></a-sphere>
-      <a-sphere position="0.5 0.1 -1.2" radius="0.08" color="#FFD700"></a-sphere>
-      <a-sphere position="-1 0.1 -1.5" radius="0.08" color="#FF69B4"></a-sphere>
+    <!-- AR空間（配置されたオブジェクトのコンテナ） -->
+    <a-entity id="ar-world" position="0 0 0">
+      <!-- 配置されたオブジェクトがここに追加される -->
     </a-entity>
     
     <!-- カメラ -->
-    <a-entity camera look-controls wasd-controls position="0 1.6 3"></a-entity>
+    <a-entity id="camera" camera look-controls wasd-controls="enabled: false" position="0 1.6 0"></a-entity>
   </a-scene>
 
   <!-- オーバーレイUI -->
   <div class="overlay">
     <div class="info-panel">
-      <h2>🌍 A-Frame VR → AR</h2>
-      <p><strong>現在:</strong> <span id="currentScene">シンプルな部屋</span></p>
+      <h2>🎯 AR Floor Detection</h2>
+      <p><strong>ステータス:</strong> <span id="ar-status-text">初期化中...</span></p>
+      <div id="ar-status-indicator" class="ar-status">
+        <p style="margin: 0; font-size: 12px;">床面をゆっくりとスキャンしてください</p>
+      </div>
       <p style="font-size: 12px; color: #999; margin-top: 10px;">
-        右のメニューで環境を切り替え<br>
-        「AR配置」で床に配置できます
+        床面を検出後、タップで3Dオブジェクトを配置
       </p>
     </div>
     
-    <div class="scene-selector">
-      <div class="scene-option active" onclick="changeEnvironment(1)">
-        🏠 シンプルな部屋
+    <!-- デバッグパネル -->
+    <div class="debug-panel">
+      <h3>🔍 AR Debug</h3>
+      
+      <div class="status-grid">
+        <div class="status-item" id="webxr-status">WebXR: 確認中</div>
+        <div class="status-item" id="camera-status">カメラ: 未取得</div>
+        <div class="status-item" id="plane-status">平面検出: 待機中</div>
+        <div class="status-item" id="objects-status">配置数: 0</div>
       </div>
-      <div class="scene-option" onclick="changeEnvironment(2)">
-        🌌 未来的空間
-      </div>
-      <div class="scene-option" onclick="changeEnvironment(3)">
-        🌲 自然の森
+      
+      <div id="debug-logs" style="max-height: 150px; overflow-y: auto;">
+        <!-- デバッグログがここに表示される -->
       </div>
     </div>
     
+    <!-- 配置オブジェクト一覧 -->
+    <div class="placed-objects-list" id="objects-list" style="display: none;">
+      <h4>🏗️ 配置済み</h4>
+      <div id="objects-container">
+        <!-- 配置されたオブジェクトのリストがここに表示 -->
+      </div>
+    </div>
+    
+    <!-- ARクロスヘア -->
+    <div class="crosshair" id="crosshair" style="display: none;"></div>
+    
     <div class="controls">
-      <button class="btn" onclick="resetView()">
-        <span>🔄</span>
-        <span>リセット</span>
+      <button class="btn primary" id="place-btn" onclick="placeObject()" disabled>
+        <span>📦</span>
+        <span>オブジェクト配置</span>
       </button>
-      <button class="btn primary" onclick="takeScreenshot()">
+      <button class="btn" onclick="clearAllObjects()">
+        <span>🗑️</span>
+        <span>全削除</span>
+      </button>
+      <button class="btn" onclick="takeScreenshot()">
         <span>📸</span>
         <span>スクショ</span>
       </button>
     </div>
   </div>
   
-  <div class="loading" id="loading">
-    読み込み中...
+  <div class="loading show" id="loading">
+    <div class="loading-spinner"></div>
+    <div>AR環境を初期化中...</div>
   </div>
 
+  <!-- AR Hit Test Component -->
   <script>
-    let currentEnv = 1;
-  
-  // ← ★ ここに追加されました ★
-  // iOS検出とパフォーマンス最適化
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  
-  if (isIOS) {
-    console.log('🍎 iOS端末を検出 - 最適化モードを適用');
-    
-    // iOS用の軽量化設定
-    document.addEventListener('DOMContentLoaded', () => {
-      const scene = document.querySelector('a-scene');
-      // 影を無効化（パフォーマンス向上）
-      scene.setAttribute('shadow', 'type: basic');
+    AFRAME.registerComponent('ar-hit-test', {
+      init: function () {
+        this.xrHitTestSource = null;
+        this.viewerSpace = null;
+        this.hitTestResults = [];
+        this.currentPose = null;
+        this.isSessionActive = false;
+        
+        this.el.sceneEl.addEventListener('enter-vr', this.onEnterVR.bind(this));
+        this.el.sceneEl.addEventListener('exit-vr', this.onExitVR.bind(this));
+        
+        this.debugLog('AR Hit Test コンポーネント初期化', 'info');
+      },
       
-      // アンチエイリアシングを軽量化
-      scene.setAttribute('renderer', 'antialias: false; logarithmicDepthBuffer: true');
-    });
-  }
-  
-    
-    // 環境切り替え
-    function changeEnvironment(envNumber) {
-      // すべて非表示
-      document.getElementById('environment1').setAttribute('visible', 'false');
-      document.getElementById('environment2').setAttribute('visible', 'false');
-      document.getElementById('environment3').setAttribute('visible', 'false');
-      
-      // 選択した環境を表示
-      document.getElementById('environment' + envNumber).setAttribute('visible', 'true');
-      currentEnv = envNumber;
-      
-      // UI更新
-      const sceneNames = ['', 'シンプルな部屋', '未来的空間', '自然の森'];
-      document.getElementById('currentScene').textContent = sceneNames[envNumber];
-      
-      // アクティブ表示
-      document.querySelectorAll('.scene-option').forEach((option, index) => {
-        if (index === envNumber - 1) {
-          option.classList.add('active');
-        } else {
-          option.classList.remove('active');
+      onEnterVR: function () {
+        this.isSessionActive = true;
+        const scene = this.el.sceneEl;
+        const xrSession = scene.renderer.xr.getSession();
+        
+        if (xrSession) {
+          this.debugLog('WebXR セッション開始', 'success');
+          this.setupHitTest(xrSession);
         }
-      });
+      },
       
-      console.log('環境切り替え:', sceneNames[envNumber]);
+      onExitVR: function () {
+        this.isSessionActive = false;
+        this.debugLog('WebXR セッション終了', 'info');
+      },
+      
+      setupHitTest: async function (session) {
+        try {
+          this.viewerSpace = await session.requestReferenceSpace('viewer');
+          const hitTestSource = await session.requestHitTestSource({
+            space: this.viewerSpace
+          });
+          this.xrHitTestSource = hitTestSource;
+          this.debugLog('Hit Test 初期化完了', 'success');
+          updateStatus('plane-status', '平面検出: 準備完了', true);
+        } catch (error) {
+          this.debugLog(`Hit Test エラー: ${error.message}`, 'error');
+          updateStatus('plane-status', '平面検出: エラー', false);
+        }
+      },
+      
+      tick: function () {
+        if (!this.isSessionActive || !this.xrHitTestSource) return;
+        
+        const frame = this.el.sceneEl.frame;
+        if (!frame) return;
+        
+        const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
+        
+        if (hitTestResults.length > 0) {
+          this.hitTestResults = hitTestResults;
+          const hit = hitTestResults[0];
+          const pose = hit.getPose(this.el.sceneEl.renderer.xr.getReferenceSpace());
+          
+          if (pose) {
+            this.currentPose = pose;
+            
+            // クロスヘアを表示・更新
+            const crosshair = document.getElementById('crosshair');
+            crosshair.style.display = 'block';
+            crosshair.classList.add('ready');
+            
+            // 配置ボタンを有効化
+            const placeBtn = document.getElementById('place-btn');
+            placeBtn.disabled = false;
+            placeBtn.classList.add('ar-active');
+            
+            // ステータス更新
+            document.getElementById('ar-status-text').textContent = '床面検出中 - タップで配置';
+            const indicator = document.getElementById('ar-status-indicator');
+            indicator.classList.add('active');
+            
+            updateStatus('plane-status', '平面検出: アクティブ', true);
+          }
+        } else {
+          // 平面が検出されていない状態
+          const crosshair = document.getElementById('crosshair');
+          crosshair.classList.remove('ready');
+          
+          const placeBtn = document.getElementById('place-btn');
+          placeBtn.disabled = true;
+          placeBtn.classList.remove('ar-active');
+          
+          updateStatus('plane-status', '平面検出: スキャン中', true);
+        }
+      },
+      
+      getCurrentPose: function () {
+        return this.currentPose;
+      },
+      
+      debugLog: function (message, type = 'info') {
+        if (window.debugLog) {
+          window.debugLog(message, type);
+        }
+      }
+    });
+  </script>
+
+  <script>
+    // デバッグ設定
+    let debugMode = true;
+    const debugLogs = [];
+    let placedObjects = [];
+    let objectCounter = 0;
+    
+    // グローバル関数として定義
+    window.debugLog = function(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = { message, type, timestamp };
+      debugLogs.push(logEntry);
+      
+      // コンソールにも出力
+      console.log(`[${timestamp}] [${type.toUpperCase()}] ${message}`);
+      
+      // 画面のデバッグパネルに表示
+      updateDebugPanel();
+      
+      // デバッグログの上限管理
+      if (debugLogs.length > 30) {
+        debugLogs.shift();
+      }
     }
     
-    // ビューリセット
-    function resetView() {
-      const camera = document.querySelector('[camera]');
-      camera.setAttribute('position', '0 1.6 3');
-      camera.setAttribute('rotation', '0 0 0');
+    // デバッグパネル更新
+    function updateDebugPanel() {
+      const logsContainer = document.getElementById('debug-logs');
+      if (!logsContainer) return;
+      
+      logsContainer.innerHTML = debugLogs.slice(-8).map(log => {
+        const className = `debug-log debug-${log.type}`;
+        return `<div class="${className}">[${log.timestamp}] ${log.message}</div>`;
+      }).join('');
+      
+      // 最新ログを表示
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+    
+    // ステータス更新
+    function updateStatus(id, text, isOk = true) {
+      const element = document.getElementById(id);
+      if (element) {
+        element.textContent = text;
+        element.className = `status-item ${isOk ? 'status-ok' : 'status-error'}`;
+      }
+    }
+    
+    // オブジェクト配置
+    function placeObject() {
+      const scene = document.querySelector('a-scene');
+      const hitTestComponent = scene.components['ar-hit-test'];
+      
+      if (!hitTestComponent) {
+        debugLog('Hit Test コンポーネントが見つかりません', 'error');
+        return;
+      }
+      
+      const pose = hitTestComponent.getCurrentPose();
+      if (!pose) {
+        debugLog('有効な平面が検出されていません', 'warning');
+        return;
+      }
+      
+      // オブジェクトの種類をランダムに選択
+      const objectTypes = [
+        { type: 'box', color: '#ff6b6b', scale: '0.3 0.3 0.3', name: '赤い立方体' },
+        { type: 'sphere', color: '#4ecdc4', scale: '0.25 0.25 0.25', name: '青い球体' },
+        { type: 'cylinder', color: '#45b7d1', scale: '0.2 0.4 0.2', name: '青い円柱' },
+        { type: 'cone', color: '#96ceb4', scale: '0.25 0.5 0.25', name: '緑い円錐' },
+        { type: 'octahedron', color: '#ffd93d', scale: '0.3 0.3 0.3', name: '黄色い八面体' }
+      ];
+      
+      const objectType = objectTypes[Math.floor(Math.random() * objectTypes.length)];
+      objectCounter++;
+      
+      // 3Dオブジェクトを作成
+      const entity = document.createElement(`a-${objectType.type}`);
+      
+      // 位置を設定（床面に配置）
+      const position = pose.transform.position;
+      entity.setAttribute('position', `${position.x} ${position.y + 0.1} ${position.z}`);
+      
+      // その他の属性
+      entity.setAttribute('color', objectType.color);
+      entity.setAttribute('scale', objectType.scale);
+      entity.setAttribute('shadow', 'cast: true; receive: false');
+      
+      // アニメーション追加
+      entity.setAttribute('animation', 
+        'property: rotation; to: 0 360 0; loop: true; dur: 4000');
+      entity.setAttribute('animation__hover', 
+        'property: position; to: ' + position.x + ' ' + (position.y + 0.2) + ' ' + position.z + 
+        '; dir: alternate; loop: true; dur: 2000');
+      
+      // IDを設定
+      const objectId = `ar-object-${objectCounter}`;
+      entity.setAttribute('id', objectId);
+      
+      // シーンに追加
+      document.getElementById('ar-world').appendChild(entity);
+      
+      // 配置リストに追加
+      placedObjects.push({
+        id: objectId,
+        name: objectType.name,
+        element: entity
+      });
+      
+      debugLog(`オブジェクト配置: ${objectType.name} (${objectId})`, 'success');
+      updateObjectsList();
+      updateStatus('objects-status', `配置数: ${placedObjects.length}`, true);
+      
+      // 配置成功のフィードバック
+      showPlacementFeedback();
+    }
+    
+    // 配置成功のフィードバック
+    function showPlacementFeedback() {
+      const crosshair = document.getElementById('crosshair');
+      crosshair.style.transform = 'translate(-50%, -50%) scale(1.5)';
+      crosshair.style.borderColor = '#6bcf7f';
+      
+      setTimeout(() => {
+        crosshair.style.transform = 'translate(-50%, -50%) scale(1)';
+        crosshair.style.borderColor = 'rgba(0, 212, 255, 0.8)';
+      }, 300);
+    }
+    
+    // オブジェクト一覧更新
+    function updateObjectsList() {
+      const container = document.getElementById('objects-container');
+      const listPanel = document.getElementById('objects-list');
+      
+      if (placedObjects.length > 0) {
+        listPanel.style.display = 'block';
+        container.innerHTML = placedObjects.map(obj => `
+          <div class="object-item">
+            <span>${obj.name}</span>
+            <button class="delete-btn" onclick="deleteObject('${obj.id}')">削除</button>
+          </div>
+        `).join('');
+      } else {
+        listPanel.style.display = 'none';
+      }
+    }
+    
+    // 個別オブジェクト削除
+    function deleteObject(objectId) {
+      const index = placedObjects.findIndex(obj => obj.id === objectId);
+      if (index !== -1) {
+        const obj = placedObjects[index];
+        if (obj.element.parentNode) {
+          obj.element.remove();
+        }
+        placedObjects.splice(index, 1);
+        debugLog(`オブジェクト削除: ${obj.name}`, 'info');
+        updateObjectsList();
+        updateStatus('objects-status', `配置数: ${placedObjects.length}`, true);
+      }
+    }
+    
+    // 全オブジェクト削除
+    function clearAllObjects() {
+      placedObjects.forEach(obj => {
+        if (obj.element.parentNode) {
+          obj.element.remove();
+        }
+      });
+      placedObjects = [];
+      debugLog('全オブジェクトを削除', 'info');
+      updateObjectsList();
+      updateStatus('objects-status', '配置数: 0', true);
+    }
+    
+    // カメラ確認
+    async function checkCamera() {
+      try {
+        debugLog('カメラアクセスを試行', 'info');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());
+        updateStatus('camera-status', 'カメラ: OK', true);
+        debugLog('カメラアクセス成功', 'success');
+        return true;
+      } catch (error) {
+        updateStatus('camera-status', 'カメラ: エラー', false);
+        debugLog(`カメラアクセスエラー: ${error.message}`, 'error');
+        return false;
+      }
+    }
+    
+    // WebXR確認
+    function checkWebXR() {
+      if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+          if (supported) {
+            updateStatus('webxr-status', 'WebXR: AR対応', true);
+            debugLog('WebXR AR サポートを確認', 'success');
+          } else {
+            updateStatus('webxr-status', 'WebXR: AR非対応', false);
+            debugLog('WebXR AR 非サポート', 'warning');
+          }
+        }).catch(error => {
+          updateStatus('webxr-status', 'WebXR: エラー', false);
+          debugLog(`WebXR確認エラー: ${error.message}`, 'error');
+        });
+      } else {
+        updateStatus('webxr-status', 'WebXR: 未対応', false);
+        debugLog('WebXR 未サポート', 'warning');
+      }
     }
     
     // スクリーンショット
     function takeScreenshot() {
       const scene = document.querySelector('a-scene');
-      const canvas = scene.canvas;
+      if (!scene || !scene.canvas) {
+        debugLog('Canvasが見つかりません', 'error');
+        return;
+      }
       
-      // Canvasから画像を生成
-      canvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = `vr-ar-screenshot-${Date.now()}.png`;
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-      });
-      
-      console.log('📸 スクリーンショット撮影');
+      try {
+        const canvas = scene.canvas;
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `ar-screenshot-${Date.now()}.png`;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+            debugLog('スクリーンショット保存成功', 'success');
+          } else {
+            debugLog('スクリーンショットの生成に失敗', 'error');
+          }
+        });
+      } catch (error) {
+        debugLog(`スクリーンショットエラー: ${error.message}`, 'error');
+      }
     }
     
-    // A-Frameシーン読み込み完了
-    document.querySelector('a-scene').addEventListener('loaded', () => {
-      console.log('✅ A-Frameシーン読み込み完了');
-      document.getElementById('loading').classList.remove('show');
+    // エラーハンドリング
+    window.addEventListener('error', (event) => {
+      debugLog(`JavaScript エラー: ${event.error?.message || event.message}`, 'error');
+      console.error('Global error:', event.error);
+    });
+    
+    window.addEventListener('unhandledrejection', (event) => {
+      debugLog(`Promise rejection: ${event.reason}`, 'error');
+      console.error('Unhandled promise rejection:', event.reason);
+    });
+    
+    // 初期化
+    document.addEventListener('DOMContentLoaded', () => {
+      debugLog('DOM読み込み完了', 'success');
+      
+      checkCamera();
+      checkWebXR();
+      
+      // A-Frame確認
+      if (window.AFRAME) {
+        debugLog(`A-Frame バージョン: ${AFRAME.version}`, 'success');
+      } else {
+        debugLog('A-Frame が見つかりません', 'error');
+      }
+    });
+    
+    // A-Frameシーンイベント
+    document.addEventListener('DOMContentLoaded', () => {
+      const scene = document.querySelector('a-scene');
+      
+      if (scene) {
+        scene.addEventListener('loaded', () => {
+          debugLog('A-Frameシーン読み込み完了', 'success');
+          document.getElementById('loading').classList.remove('show');
+          document.getElementById('ar-status-text').textContent = 'AR準備完了';
+        });
+        
+        scene.addEventListener('renderstart', () => {
+          debugLog('A-Frameレンダリング開始', 'info');
+        });
+        
+        scene.addEventListener('enter-vr', () => {
+          debugLog('ARモード開始', 'success');
+          document.getElementById('ar-status-text').textContent = 'ARモード アクティブ';
+          const indicator = document.getElementById('ar-status-indicator');
+          indicator.classList.add('active');
+        });
+        
+        scene.addEventListener('exit-vr', () => {
+          debugLog('ARモード終了', 'info');
+          document.getElementById('ar-status-text').textContent = 'ARモード 終了';
+          const indicator = document.getElementById('ar-status-indicator');
+          indicator.classList.remove('active');
+        });
+      }
+    });
+    
+    // タッチ・クリックでオブジェクト配置
+    document.addEventListener('click', (event) => {
+      // UIボタンのクリックは除外
+      if (event.target.closest('.btn') || event.target.closest('.debug-panel') || event.target.closest('.info-panel')) {
+        return;
+      }
+      
+      const placeBtn = document.getElementById('place-btn');
+      if (!placeBtn.disabled) {
+        placeObject();
+      }
+    });
+    
+    // タッチイベントも処理
+    document.addEventListener('touchend', (event) => {
+      if (event.target.closest('.btn') || event.target.closest('.debug-panel') || event.target.closest('.info-panel')) {
+        return;
+      }
+      
+      event.preventDefault();
+      const placeBtn = document.getElementById('place-btn');
+      if (!placeBtn.disabled) {
+        placeObject();
+      }
     });
   </script>
 </body>

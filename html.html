@@ -1,1594 +1,593 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cross-Platform AR - 廃倉庫モデル</title>
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      overflow: hidden;
-      background: #000;
-    }
-    
-    .platform-container {
-      position: relative;
-      width: 100%;
-      height: 100vh;
-    }
-    
-    /* A-Frame用スタイル */
-    .aframe-container {
-      width: 100%;
-      height: 100%;
-    }
-    
-    /* model-viewer用スタイル */
-    .model-viewer-container {
-      width: 100%;
-      height: 100%;
-      display: none;
-    }
-    
-    model-viewer {
-      width: 100%;
-      height: 100%;
-      background-color: transparent;
-    }
-    
-    .overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1000;
-    }
-    
-    .info-panel {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(15px);
-      color: white;
-      padding: 20px;
-      border-radius: 15px;
-      max-width: 320px;
-      pointer-events: auto;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .info-panel h2 {
-      font-size: 18px;
-      margin-bottom: 15px;
-      color: #00d4ff;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .info-panel p {
-      font-size: 14px;
-      line-height: 1.6;
-      margin-bottom: 8px;
-      color: #e0e0e0;
-    }
-    
-    .platform-info {
-      background: rgba(0, 212, 255, 0.1);
-      border: 1px solid rgba(0, 212, 255, 0.3);
-      padding: 12px;
-      border-radius: 10px;
-      margin-top: 10px;
-    }
-    
-    .ar-status {
-      background: rgba(0, 212, 255, 0.1);
-      border: 1px solid rgba(0, 212, 255, 0.3);
-      padding: 12px;
-      border-radius: 10px;
-      margin-top: 10px;
-    }
-    
-    .ar-status.active {
-      background: rgba(107, 207, 127, 0.2);
-      border-color: rgba(107, 207, 127, 0.5);
-    }
-    
-    .ar-status.error {
-      background: rgba(255, 107, 107, 0.1);
-      border-color: rgba(255, 107, 107, 0.3);
-    }
-    
-    /* デバッグパネル */
-    .debug-panel {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(20, 20, 20, 0.95);
-      backdrop-filter: blur(10px);
-      color: white;
-      padding: 15px;
-      border-radius: 12px;
-      max-width: 380px;
-      max-height: 60vh;
-      overflow-y: auto;
-      pointer-events: auto;
-      font-size: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .debug-panel h3 {
-      color: #ff6b6b;
-      margin-bottom: 10px;
-      font-size: 14px;
-    }
-    
-    .debug-log {
-      background: rgba(0, 0, 0, 0.6);
-      padding: 8px 10px;
-      border-radius: 6px;
-      margin-bottom: 8px;
-      border-left: 3px solid #4ecdc4;
-      font-size: 11px;
-    }
-    
-    .debug-error {
-      border-left-color: #ff6b6b;
-      background: rgba(255, 107, 107, 0.1);
-    }
-    
-    .debug-warning {
-      border-left-color: #ffd93d;
-      background: rgba(255, 217, 61, 0.1);
-    }
-    
-    .debug-success {
-      border-left-color: #6bcf7f;
-      background: rgba(107, 207, 127, 0.1);
-    }
-    
-    .status-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 15px;
-    }
-    
-    .status-item {
-      background: rgba(255, 255, 255, 0.1);
-      padding: 8px;
-      border-radius: 6px;
-      text-align: center;
-      font-size: 11px;
-    }
-    
-    .status-ok {
-      background: rgba(107, 207, 127, 0.2);
-    }
-    
-    .status-error {
-      background: rgba(255, 107, 107, 0.2);
-    }
-    
-    .controls {
-      position: absolute;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 12px;
-      pointer-events: auto;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    
-    .btn {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-      border: none;
-      padding: 15px 25px;
-      border-radius: 30px;
-      font-weight: 600;
-      font-size: 15px;
-      cursor: pointer;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    .btn:active {
-      transform: scale(0.95);
-    }
-    
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    
-    .btn.primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-    }
-    
-    .btn.ar-btn {
-      background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
-      color: white;
-    }
-    
-    .btn.ar-active {
-      animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 6px 20px rgba(0,212,255,0.4); }
-      50% { box-shadow: 0 6px 30px rgba(0,212,255,0.8); }
-    }
-    
-    .ar-instructions {
-      position: absolute;
-      bottom: 120px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 15px 25px;
-      border-radius: 25px;
-      font-size: 14px;
-      text-align: center;
-      max-width: 300px;
-      pointer-events: auto;
-      display: none;
-    }
-    
-    .ar-instructions.show {
-      display: block;
-      animation: fadeIn 0.5s ease-in-out;
-    }
-    
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
-      to { opacity: 1; transform: translateX(-50%) translateY(0); }
-    }
-    
-    .loading {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 30px 40px;
-      border-radius: 15px;
-      font-size: 18px;
-      z-index: 2000;
-      display: none;
-      text-align: center;
-    }
-    
-    .loading.show {
-      display: block;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer AR Floor Object Interaction</title>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-database.js"></script>
+    <style>
+        :root {
+            --color-primary: #2180ce;
+            --color-primary-hover: #1a65a3;
+            --color-bg: #f5f5f5;
+            --color-text: #333;
+            --color-surface: #fff;
+            --color-error: #d32f2f;
+            --color-success: #388e3c;
+        }
 
-    .loading-spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top: 4px solid #00d4ff;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 15px;
-    }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            overflow: hidden;
+        }
 
-    /* iOS専用のAR Quick Look用スタイル */
-    .ios-ar-link {
-      display: none;
-    }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
 
-    .model-scale-controls {
-      position: absolute;
-      bottom: 150px;
-      right: 20px;
-      background: rgba(0, 0, 0, 0.8);
-      padding: 15px;
-      border-radius: 12px;
-      pointer-events: auto;
-      display: none;
-    }
+        .ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
 
-    .model-scale-controls.show {
-      display: block;
-    }
+        .ui-panel {
+            position: fixed;
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
 
-    .scale-btn {
-      background: rgba(255, 255, 255, 0.2);
-      border: none;
-      color: white;
-      padding: 10px 15px;
-      margin: 5px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-    }
+        #ar-status {
+            top: 20px;
+            left: 20px;
+            max-width: 300px;
+        }
 
-    .scale-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
+        #turn-display {
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            text-align: center;
+        }
 
-    /* オブジェクト管理パネル */
-    .object-manager {
-      position: absolute;
-      top: 50%;
-      left: 20px;
-      transform: translateY(-50%);
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(10px);
-      padding: 15px;
-      border-radius: 12px;
-      max-width: 280px;
-      pointer-events: auto;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
+        #debug-panel {
+            bottom: 20px;
+            left: 20px;
+            max-width: 400px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 10px;
+        }
 
-    .object-manager h4 {
-      color: #00d4ff;
-      margin-bottom: 10px;
-      font-size: 14px;
-    }
+        .status-item {
+            margin: 8px 0;
+            padding: 8px;
+            border-left: 3px solid var(--color-primary);
+        }
 
-    .object-item {
-      background: rgba(255, 255, 255, 0.1);
-      padding: 10px 12px;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      font-size: 12px;
-      color: white;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
+        .status-label {
+            font-weight: 600;
+            color: var(--color-primary);
+        }
 
-    .object-item:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
+        .status-value {
+            color: var(--color-text);
+            margin-left: 8px;
+        }
 
-    .object-item.selected {
-      background: rgba(0, 212, 255, 0.3);
-      border: 1px solid rgba(0, 212, 255, 0.6);
-    }
+        .turn-active {
+            background: rgba(56, 142, 60, 0.1);
+            border-color: var(--color-success);
+        }
 
-    .object-priority {
-      background: #ff6b6b;
-      color: white;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 10px;
-      margin-left: 8px;
-    }
+        .turn-waiting {
+            background: rgba(211, 47, 47, 0.1);
+            border-color: var(--color-error);
+        }
 
-    .object-priority.high {
-      background: #ff6b6b;
-    }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
 
-    .object-priority.medium {
-      background: #ffd93d;
-      color: #333;
-    }
+        button {
+            flex: 1;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            background: var(--color-primary);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.3s ease;
+        }
 
-    .object-priority.low {
-      background: #6bcf7f;
-    }
+        button:hover {
+            background: var(--color-primary-hover);
+        }
 
-    /* タッチ情報パネル */
-    .touch-info-panel {
-      position: absolute;
-      bottom: 200px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.9);
-      backdrop-filter: blur(15px);
-      color: white;
-      padding: 20px;
-      border-radius: 15px;
-      max-width: 320px;
-      text-align: center;
-      pointer-events: auto;
-      border: 2px solid rgba(0, 212, 255, 0.5);
-      animation: slideUp 0.3s ease-out;
-    }
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
 
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }
-    }
+        .session-controls {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
 
-    .touch-info-panel h4 {
-      color: #00d4ff;
-      margin-bottom: 8px;
-      font-size: 16px;
-    }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
 
-    .touch-info-panel p {
-      margin-bottom: 15px;
-      font-size: 13px;
-      color: #e0e0e0;
-    }
+        .object-info {
+            background: rgba(33, 128, 206, 0.05);
+            border-left: 3px solid var(--color-primary);
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
 
-    .touch-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
+        .hint-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+            font-style: italic;
+        }
 
-    .touch-btn {
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 8px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
-
-    .touch-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
-      transform: scale(1.05);
-    }
-
-    /* インタラクションエフェクト */
-    .object-highlight {
-      animation: highlight-pulse 2s infinite;
-    }
-
-    @keyframes highlight-pulse {
-      0%, 100% { 
-        filter: drop-shadow(0 0 5px #00d4ff); 
-      }
-      50% { 
-        filter: drop-shadow(0 0 20px #00d4ff) drop-shadow(0 0 30px #00d4ff); 
-      }
-    }
-
-    .touch-ripple {
-      position: absolute;
-      border-radius: 50%;
-      background: rgba(0, 212, 255, 0.6);
-      animation: ripple 0.6s linear;
-      pointer-events: none;
-    }
-
-    @keyframes ripple {
-      0% {
-        transform: scale(0);
-        opacity: 1;
-      }
-      100% {
-        transform: scale(4);
-        opacity: 0;
-      }
-    }
-  </style>
+        @media (max-height: 600px) {
+            .ui-panel {
+                font-size: 12px;
+                padding: 12px;
+            }
+            button {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="platform-container">
-    
-    <!-- A-Frame AR (Android/Desktop用) -->
-    <div class="aframe-container" id="aframe-container">
-      <a-scene 
-        id="scene"
-        embedded 
-        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-        vr-mode-ui="enabled: false"
-        background="color: transparent"
-        ar-hit-test
-      >
-        <!-- 環境光 -->
-        <a-entity light="type: ambient; color: #FFF; intensity: 0.6"></a-entity>
-        <a-entity light="type: directional; color: #FFF; intensity: 0.8" position="0 5 5"></a-entity>
-        
-        <!-- AR空間（配置されたモデルのコンテナ） -->
-        <a-entity id="ar-world" position="0 0 0">
-          <!-- 配置された廃倉庫モデルがここに追加される -->
-        </a-entity>
-        
-        <!-- カメラ（レイキャスター付き） -->
-        <a-entity 
-          id="camera" 
-          camera 
-          look-controls 
-          wasd-controls="enabled: false" 
-          position="0 1.6 0"
-          raycaster="objects: .interactive; far: 100; interval: 100"
-          cursor="rayOrigin: mouse; fuse: false"
-          ar-interaction-handler
-        ></a-entity>
-      </a-scene>
+    <canvas id="canvas"></canvas>
+
+    <div class="ui-overlay">
+        <!-- AR Status & Setup -->
+        <div id="ar-status" class="ui-panel">
+            <div class="status-item">
+                <span class="status-label">AR Status:</span>
+                <span class="status-value" id="status-ar">Initializing...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Floor:</span>
+                <span class="status-value" id="status-floor">Searching...</span>
+            </div>
+            <div class="status-item" id="session-status" style="display:none;">
+                <span class="status-label">Session:</span>
+                <span class="status-value" id="status-session">Loading...</span>
+            </div>
+
+            <div class="session-controls" id="session-input" style="display:none;">
+                <input type="text" id="session-code" placeholder="Enter or create session ID" maxlength="8">
+                <div class="button-group">
+                    <button id="btn-join">Join</button>
+                    <button id="btn-create">Create</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Turn Display -->
+        <div id="turn-display" class="ui-panel" style="display:none;">
+            <div class="status-item" id="turn-status">
+                <span class="status-label">Current Turn:</span>
+                <span class="status-value" id="turn-player">Waiting...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Your ID:</span>
+                <span class="status-value" id="your-id">-</span>
+            </div>
+            <div class="object-info" id="object-status">
+                <strong>Object Position:</strong><br>
+                <span id="obj-pos">Not placed</span>
+            </div>
+            <div class="hint-text">
+                <span id="interaction-hint">Tap the screen to place the object on the floor</span>
+            </div>
+        </div>
+
+        <!-- Debug Panel -->
+        <div id="debug-panel">
+            <div id="debug-log"></div>
+        </div>
     </div>
 
-    <!-- model-viewer (iOS用) -->
-    <div class="model-viewer-container" id="model-viewer-container">
-      <model-viewer
-        id="warehouse-viewer"
-        src="./models/abandoned_warehouse_-_interior_scene.glb"
-        ar
-        ar-modes="webxr scene-viewer quick-look"
-        camera-controls
-        shadow-intensity="1"
-        auto-rotate
-        auto-rotate-delay="3000"
-        environment-image="neutral"
-        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23222'/%3E%3Ctext x='50' y='50' text-anchor='middle' dy='0.35em' fill='white' font-family='Arial' font-size='12'%3E廃倉庫モデル%3C/text%3E%3C/svg%3E"
-      >
-        <button id="ar-button" slot="ar-button" class="btn ar-btn">
-          <span>🏗️</span>
-          <span>ARで配置</span>
-        </button>
-      </model-viewer>
-    </div>
-
-  </div>
-
-  <!-- オーバーレイUI -->
-  <div class="overlay">
-    <div class="info-panel">
-      <h2>🏗️ 廃倉庫 AR配置</h2>
-      <p><strong>プラットフォーム:</strong> <span id="platform-info">検出中...</span></p>
-      <div id="ar-status-indicator" class="ar-status">
-        <p style="margin: 0; font-size: 12px;" id="ar-status-text">初期化中...</p>
-      </div>
-      <div id="platform-specific-info" class="platform-info">
-        <!-- プラットフォーム固有の情報がここに表示 -->
-      </div>
-    </div>
-    
-    <!-- デバッグパネル -->
-    <div class="debug-panel">
-      <h3>🔍 プラットフォーム診断</h3>
-      
-      <div class="status-grid">
-        <div class="status-item" id="platform-status">プラットフォーム: 検出中</div>
-        <div class="status-item" id="ar-support-status">ARサポート: 確認中</div>
-        <div class="status-item" id="camera-status">カメラ: 未確認</div>
-        <div class="status-item" id="model-status">モデル: 読み込み中</div>
-      </div>
-      
-      <div id="debug-logs" style="max-height: 150px; overflow-y: auto;">
-        <!-- デバッグログがここに表示される -->
-      </div>
-    </div>
-    
-    <!-- AR使用説明 -->
-    <div class="ar-instructions" id="ar-instructions">
-      <p id="instruction-text">床面をスキャンしてタップで配置</p>
-    </div>
-
-    <!-- モデルスケール調整 -->
-    <div class="model-scale-controls" id="scale-controls">
-      <h4 style="color: white; margin-bottom: 10px; font-size: 12px;">モデルサイズ</h4>
-      <button class="scale-btn" onclick="changeScale(0.5)">小 (50%)</button>
-      <button class="scale-btn" onclick="changeScale(1.0)">標準 (100%)</button>
-      <button class="scale-btn" onclick="changeScale(2.0)">大 (200%)</button>
-    </div>
-    
-    <!-- 配置オブジェクト管理パネル -->
-    <div class="object-manager" id="object-manager" style="display: none;">
-      <h4>🎯 インタラクティブ オブジェクト</h4>
-      <div id="object-list">
-        <!-- オブジェクト一覧がここに表示 -->
-      </div>
-    </div>
-
-    <!-- タッチ情報パネル -->
-    <div class="touch-info-panel" id="touch-info-panel" style="display: none;">
-      <h4 id="touch-object-name">オブジェクト名</h4>
-      <p id="touch-object-desc">説明がここに表示されます</p>
-      <div class="touch-actions">
-        <button class="touch-btn" onclick="highlightObject()">🔆 ハイライト</button>
-        <button class="touch-btn" onclick="animateObject()">🎭 アニメーション</button>
-        <button class="touch-btn" onclick="deleteSelectedObject()">🗑️ 削除</button>
-      </div>
-    </div>
-    
-    <div class="controls">
-      <button class="btn ar-btn" id="start-ar-btn" onclick="startAR()">
-        <span>📱</span>
-        <span id="ar-btn-text">AR開始</span>
-      </button>
-      <button class="btn" id="place-warehouse-btn" onclick="placeWarehouseModel()" disabled>
-        <span>🏗️</span>
-        <span>廃倉庫配置</span>
-      </button>
-      <button class="btn primary" id="place-interactive-btn" onclick="placeInteractiveObject()" disabled>
-        <span>⚡</span>
-        <span>機械配置</span>
-      </button>
-      <button class="btn" onclick="clearModels()">
-        <span>🗑️</span>
-        <span>全削除</span>
-      </button>
-      <button class="btn primary" onclick="takeScreenshot()">
-        <span>📸</span>
-        <span>スクショ</span>
-      </button>
-    </div>
-  </div>
-  
-  <div class="loading show" id="loading">
-    <div class="loading-spinner"></div>
-    <div>プラットフォーム検出中...</div>
-  </div>
-
-  <!-- iOS用AR Quick Look リンク (非表示) -->
-  <a id="ios-ar-link" class="ios-ar-link" rel="ar" href="#">
-    <img id="ios-ar-img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" alt="AR View">
-  </a>
-
-  <!-- AR Hit Test Component for A-Frame -->
-  <script>
-    // AR Hit Test Component
-    AFRAME.registerComponent('ar-hit-test', {
-      init: function () {
-        this.xrHitTestSource = null;
-        this.viewerSpace = null;
-        this.currentPose = null;
-        this.isSessionActive = false;
-        
-        this.el.sceneEl.addEventListener('enter-vr', this.onEnterVR.bind(this));
-        this.el.sceneEl.addEventListener('exit-vr', this.onExitVR.bind(this));
-        
-        this.debugLog('AR Hit Test コンポーネント初期化', 'info');
-      },
-      
-      onEnterVR: function () {
-        this.isSessionActive = true;
-        const scene = this.el.sceneEl;
-        const xrSession = scene.renderer.xr.getSession();
-        
-        if (xrSession) {
-          this.debugLog('WebXR セッション開始', 'success');
-          this.setupHitTest(xrSession);
-        }
-      },
-      
-      onExitVR: function () {
-        this.isSessionActive = false;
-        this.debugLog('WebXR セッション終了', 'info');
-      },
-      
-      setupHitTest: async function (session) {
-        try {
-          this.viewerSpace = await session.requestReferenceSpace('viewer');
-          const hitTestSource = await session.requestHitTestSource({
-            space: this.viewerSpace
-          });
-          this.xrHitTestSource = hitTestSource;
-          this.debugLog('Hit Test 初期化完了', 'success');
-          updateStatus('ar-support-status', 'ARサポート: アクティブ', true);
-        } catch (error) {
-          this.debugLog(`Hit Test エラー: ${error.message}`, 'error');
-          updateStatus('ar-support-status', 'ARサポート: エラー', false);
-        }
-      },
-      
-      tick: function () {
-        if (!this.isSessionActive || !this.xrHitTestSource) return;
-        
-        const frame = this.el.sceneEl.frame;
-        if (!frame) return;
-        
-        const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
-        
-        if (hitTestResults.length > 0) {
-          this.hitTestResults = hitTestResults;
-          const hit = hitTestResults[0];
-          const pose = hit.getPose(this.el.sceneEl.renderer.xr.getReferenceSpace());
-          
-          if (pose) {
-            this.currentPose = pose;
-            
-            // 配置ボタンを有効化
-            document.getElementById('place-warehouse-btn').disabled = false;
-            document.getElementById('place-interactive-btn').disabled = false;
-            
-            // ステータス更新
-            document.getElementById('ar-status-text').textContent = '床面検出 - タップで配置';
-            const indicator = document.getElementById('ar-status-indicator');
-            indicator.classList.add('active');
-            
-            // 説明表示
-            const instructions = document.getElementById('ar-instructions');
-            instructions.classList.add('show');
-          }
-        } else {
-          document.getElementById('place-warehouse-btn').disabled = true;
-          document.getElementById('place-interactive-btn').disabled = true;
-          
-          const instructions = document.getElementById('ar-instructions');
-          instructions.classList.remove('show');
-        }
-      },
-      
-      getCurrentPose: function () {
-        return this.currentPose;
-      },
-      
-      debugLog: function (message, type = 'info') {
-        if (window.debugLog) {
-          window.debugLog(message, type);
-        }
-      }
-    });
-
-    // AR Interaction Handler Component
-    AFRAME.registerComponent('ar-interaction-handler', {
-      init: function () {
-        this.selectedObject = null;
-        this.interactiveObjects = new Map();
-        
-        // レイキャストイベントリスナー
-        this.el.addEventListener('raycaster-intersected', this.onIntersected.bind(this));
-        this.el.addEventListener('raycaster-intersected-cleared', this.onIntersectedCleared.bind(this));
-        
-        // クリック/タッチイベントリスナー
-        this.el.addEventListener('click', this.onObjectClicked.bind(this));
-        
-        this.debugLog('AR Interaction Handler 初期化', 'info');
-      },
-      
-      onIntersected: function (evt) {
-        const intersectedEl = evt.detail.el;
-        if (intersectedEl.classList.contains('interactive')) {
-          this.highlightObject(intersectedEl, true);
-        }
-      },
-      
-      onIntersectedCleared: function (evt) {
-        const intersectedEl = evt.detail.el;
-        if (intersectedEl.classList.contains('interactive')) {
-          this.highlightObject(intersectedEl, false);
-        }
-      },
-      
-      onObjectClicked: function (evt) {
-        const intersections = this.el.components.raycaster.intersections;
-        if (intersections.length === 0) return;
-        
-        // 優先度順にソート（距離が近い順 + 優先度）
-        const sortedIntersections = intersections
-          .filter(intersection => intersection.object.el.classList.contains('interactive'))
-          .sort((a, b) => {
-            const priorityA = parseInt(a.object.el.getAttribute('data-priority') || '0');
-            const priorityB = parseInt(b.object.el.getAttribute('data-priority') || '0');
-            
-            // 優先度が高い方を優先、同じ場合は距離が近い方
-            if (priorityA !== priorityB) {
-              return priorityB - priorityA; // 高い優先度が先
-            }
-            return a.distance - b.distance; // 近い距離が先
-          });
-        
-        if (sortedIntersections.length > 0) {
-          const selectedEl = sortedIntersections[0].object.el;
-          this.selectObject(selectedEl);
-          this.showTouchRipple(evt.detail.intersection.point);
-        }
-      },
-      
-      selectObject: function (element) {
-        this.selectedObject = element;
-        const objectData = this.interactiveObjects.get(element.id);
-        
-        if (objectData) {
-          this.debugLog(`オブジェクト選択: ${objectData.name}`, 'info');
-          this.showObjectInfo(objectData);
-          this.updateObjectManager();
-          
-          // 選択エフェクト
-          this.addSelectionEffect(element);
-        }
-      },
-      
-      highlightObject: function (element, highlight) {
-        if (highlight) {
-          element.classList.add('object-highlight');
-        } else {
-          element.classList.remove('object-highlight');
-        }
-      },
-      
-      addSelectionEffect: function (element) {
-        // 既存の選択エフェクトをクリア
-        document.querySelectorAll('.interactive').forEach(el => {
-          el.classList.remove('object-highlight');
-        });
-        
-        // 新しい選択エフェクトを追加
-        element.classList.add('object-highlight');
-      },
-      
-      showTouchRipple: function (position) {
-        const ripple = document.createElement('div');
-        ripple.className = 'touch-ripple';
-        ripple.style.left = '50%';
-        ripple.style.top = '50%';
-        ripple.style.width = '20px';
-        ripple.style.height = '20px';
-        ripple.style.marginLeft = '-10px';
-        ripple.style.marginTop = '-10px';
-        
-        document.body.appendChild(ripple);
-        
-        setTimeout(() => {
-          document.body.removeChild(ripple);
-        }, 600);
-      },
-      
-      showObjectInfo: function (objectData) {
-        const panel = document.getElementById('touch-info-panel');
-        const nameEl = document.getElementById('touch-object-name');
-        const descEl = document.getElementById('touch-object-desc');
-        
-        nameEl.textContent = objectData.name;
-        descEl.textContent = objectData.description;
-        
-        panel.style.display = 'block';
-        
-        // 3秒後に自動で閉じる
-        setTimeout(() => {
-          panel.style.display = 'none';
-        }, 3000);
-      },
-      
-      updateObjectManager: function () {
-        const container = document.getElementById('object-list');
-        const manager = document.getElementById('object-manager');
-        
-        if (this.interactiveObjects.size > 0) {
-          manager.style.display = 'block';
-          
-          container.innerHTML = Array.from(this.interactiveObjects.entries()).map(([id, data]) => {
-            const isSelected = this.selectedObject && this.selectedObject.id === id;
-            const priorityClass = data.priority >= 8 ? 'high' : data.priority >= 5 ? 'medium' : 'low';
-            const priorityText = data.priority >= 8 ? 'HIGH' : data.priority >= 5 ? 'MED' : 'LOW';
-            
-            return `
-              <div class="object-item ${isSelected ? 'selected' : ''}" onclick="window.selectObjectById('${id}')">
-                <span>${data.name}</span>
-                <span class="object-priority ${priorityClass}">${priorityText}</span>
-              </div>
-            `;
-          }).join('');
-        } else {
-          manager.style.display = 'none';
-        }
-      },
-      
-      registerObject: function (element, objectData) {
-        this.interactiveObjects.set(element.id, objectData);
-        this.updateObjectManager();
-      },
-      
-      unregisterObject: function (elementId) {
-        this.interactiveObjects.delete(elementId);
-        this.updateObjectManager();
-      },
-      
-      debugLog: function (message, type = 'info') {
-        if (window.debugLog) {
-          window.debugLog(message, type);
-        }
-      }
-    });
-  </script>
-
-  <script>
-    // プラットフォーム検出
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isAndroid = /Android/.test(navigator.userAgent);
-    const isMobile = isIOS || isAndroid;
-    
-    // デバッグ設定
-    let debugMode = true;
-    const debugLogs = [];
-    let placedModels = [];
-    let currentModelScale = 1.0;
-    let currentPlatform = 'unknown';
-    let selectedObjectGlobal = null;
-    
-    // オブジェクトタイプ定義（優先度付き）
-    const objectTypes = {
-      warehouse: {
-        name: '廃倉庫',
-        description: 'ダークでミステリアスな廃倉庫。内部には古い機械が残されている。',
-        priority: 10,
-        color: '#8B4513',
-        interactive: true,
-        sounds: ['ambient_industrial.mp3', 'wind_through_ruins.mp3']
-      },
-      machine: {
-        name: '古い機械',
-        description: '錆び付いた工業用機械。まだ動作する可能性がある。',
-        priority: 8,
-        color: '#4A4A4A',
-        interactive: true,
-        sounds: ['machine_hum.mp3', 'gear_turning.mp3']
-      },
-      generator: {
-        name: '発電機',
-        description: '巨大な発電機。電気が流れているようだ。',
-        priority: 7,
-        color: '#FFD700',
-        interactive: true,
-        sounds: ['electric_hum.mp3', 'power_surge.mp3']
-      },
-      container: {
-        name: 'コンテナ',
-        description: '金属製のコンテナ。中に何かが入っているかもしれない。',
-        priority: 5,
-        color: '#87CEEB',
-        interactive: true,
-        sounds: ['metal_clang.mp3', 'container_open.mp3']
-      },
-      debris: {
-        name: '瓦礫',
-        description: '崩れた建材や金属片。注意深く調べる価値があるかもしれない。',
-        priority: 3,
-        color: '#696969',
-        interactive: false,
-        sounds: ['debris_shift.mp3']
-      }
-    };
-    
-    // グローバル関数として定義
-    window.debugLog = function(message, type = 'info') {
-      const timestamp = new Date().toLocaleTimeString();
-      const logEntry = { message, type, timestamp };
-      debugLogs.push(logEntry);
-      
-      console.log(`[${timestamp}] [${type.toUpperCase()}] ${message}`);
-      updateDebugPanel();
-      
-      if (debugLogs.length > 25) {
-        debugLogs.shift();
-      }
-    }
-    
-    // インタラクション管理用グローバル関数
-    window.selectObjectById = function(objectId) {
-      const scene = document.querySelector('a-scene');
-      const element = document.getElementById(objectId);
-      
-      if (element && scene.components['ar-interaction-handler']) {
-        scene.components['ar-interaction-handler'].selectObject(element);
-      }
-    }
-    
-    window.highlightObject = function() {
-      if (selectedObjectGlobal) {
-        selectedObjectGlobal.classList.add('object-highlight');
-        debugLog(`オブジェクトハイライト: ${selectedObjectGlobal.id}`, 'info');
-        
-        setTimeout(() => {
-          selectedObjectGlobal.classList.remove('object-highlight');
-        }, 3000);
-      }
-    }
-    
-    window.animateObject = function() {
-      if (selectedObjectGlobal) {
-        // ランダムアニメーションを適用
-        const animations = [
-          'property: rotation; to: 0 360 0; dur: 2000',
-          'property: scale; to: 1.2 1.2 1.2; dir: alternate; dur: 1000; loop: 2',
-          'property: position; to: ' + selectedObjectGlobal.getAttribute('position').x + ' ' + 
-           (parseFloat(selectedObjectGlobal.getAttribute('position').y) + 0.5) + ' ' + 
-           selectedObjectGlobal.getAttribute('position').z + '; dir: alternate; dur: 1500; loop: 2'
-        ];
-        
-        const randomAnimation = animations[Math.floor(Math.random() * animations.length)];
-        selectedObjectGlobal.setAttribute('animation', randomAnimation);
-        
-        debugLog(`オブジェクトアニメーション実行: ${selectedObjectGlobal.id}`, 'info');
-      }
-    }
-    
-    window.deleteSelectedObject = function() {
-      if (selectedObjectGlobal) {
-        const objectId = selectedObjectGlobal.id;
-        const index = placedModels.findIndex(model => model.id === objectId);
-        
-        if (index !== -1) {
-          selectedObjectGlobal.remove();
-          placedModels.splice(index, 1);
-          
-          // インタラクションハンドラーからも削除
-          const scene = document.querySelector('a-scene');
-          if (scene.components['ar-interaction-handler']) {
-            scene.components['ar-interaction-handler'].unregisterObject(objectId);
-          }
-          
-          debugLog(`オブジェクト削除: ${objectId}`, 'info');
-          selectedObjectGlobal = null;
-          
-          // タッチ情報パネルを閉じる
-          document.getElementById('touch-info-panel').style.display = 'none';
-          
-          updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
-        }
-      }
-    }
-    
-    // デバッグパネル更新
-    function updateDebugPanel() {
-      const logsContainer = document.getElementById('debug-logs');
-      if (!logsContainer) return;
-      
-      logsContainer.innerHTML = debugLogs.slice(-8).map(log => {
-        const className = `debug-log debug-${log.type}`;
-        return `<div class="${className}">[${log.timestamp}] ${log.message}</div>`;
-      }).join('');
-      
-      logsContainer.scrollTop = logsContainer.scrollHeight;
-    }
-    
-    // ステータス更新
-    function updateStatus(id, text, isOk = true) {
-      const element = document.getElementById(id);
-      if (element) {
-        element.textContent = text;
-        element.className = `status-item ${isOk ? 'status-ok' : 'status-error'}`;
-      }
-    }
-    
-    // プラットフォーム初期化
-    function initializePlatform() {
-      let platformName = '';
-      let arMethod = '';
-      
-      if (isIOS) {
-        platformName = 'iOS';
-        arMethod = 'AR Quick Look + model-viewer';
-        currentPlatform = 'ios';
-        
-        // model-viewerを表示、A-Frameを非表示
-        document.getElementById('model-viewer-container').style.display = 'block';
-        document.getElementById('aframe-container').style.display = 'none';
-        
-        debugLog('iOS検出: model-viewer ARモードを使用', 'success');
-        setupiOSAR();
-        
-      } else if (isAndroid) {
-        platformName = 'Android';
-        arMethod = 'WebXR + A-Frame';
-        currentPlatform = 'android';
-        
-        // A-Frameを表示、model-viewerを非表示
-        document.getElementById('aframe-container').style.display = 'block';
-        document.getElementById('model-viewer-container').style.display = 'none';
-        
-        debugLog('Android検出: A-Frame WebXRモードを使用', 'success');
-        setupAndroidAR();
-        
-      } else {
-        platformName = 'Desktop';
-        arMethod = 'A-Frame VRモード（テスト用）';
-        currentPlatform = 'desktop';
-        
-        document.getElementById('aframe-container').style.display = 'block';
-        document.getElementById('model-viewer-container').style.display = 'none';
-        
-        debugLog('デスクトップ検出: A-Frame VRテストモードを使用', 'info');
-        setupDesktopMode();
-      }
-      
-      // UI更新
-      document.getElementById('platform-info').textContent = platformName;
-      updateStatus('platform-status', `プラットフォーム: ${platformName}`, true);
-      
-      const platformSpecificInfo = document.getElementById('platform-specific-info');
-      platformSpecificInfo.innerHTML = `
-        <p style="margin: 0; font-size: 12px; color: #ccc;">
-          <strong>AR方式:</strong> ${arMethod}
-        </p>
-      `;
-      
-      debugLog(`プラットフォーム初期化完了: ${platformName}`, 'success');
-    }
-    
-    // iOS AR セットアップ
-    function setupiOSAR() {
-      const viewer = document.getElementById('warehouse-viewer');
-      const arButton = document.getElementById('ar-button');
-      
-      // model-viewer イベントリスナー
-      viewer.addEventListener('load', () => {
-        debugLog('廃倉庫モデル読み込み完了 (model-viewer)', 'success');
-        updateStatus('model-status', 'モデル: 読み込み完了', true);
-        document.getElementById('ar-status-text').textContent = 'AR準備完了';
-      });
-      
-      viewer.addEventListener('ar-status', (event) => {
-        if (event.detail.status === 'session-started') {
-          debugLog('iOS ARセッション開始', 'success');
-          document.getElementById('ar-status-text').textContent = 'ARモード アクティブ';
-          const indicator = document.getElementById('ar-status-indicator');
-          indicator.classList.add('active');
-        }
-      });
-      
-      // ARボタンの設定
-      arButton.style.background = 'linear-gradient(135deg, #00d4ff 0%, #0099cc 100%)';
-      arButton.style.color = 'white';
-      
-      updateStatus('ar-support-status', 'ARサポート: model-viewer', true);
-      
-      // スケール調整コントロール表示
-      document.getElementById('scale-controls').classList.add('show');
-    }
-    
-    // Android AR セットアップ
-    function setupAndroidAR() {
-      // WebXR サポート確認
-      if (navigator.xr) {
-        navigator.xr.isSessionSupported('immersive-ar').then(supported => {
-          if (supported) {
-            debugLog('WebXR AR サポートを確認', 'success');
-            updateStatus('ar-support-status', 'ARサポート: WebXR', true);
-          } else {
-            debugLog('WebXR AR 非サポート、AR.jsフォールバック', 'warning');
-            updateStatus('ar-support-status', 'ARサポート: AR.js', true);
-          }
-        }).catch(error => {
-          debugLog(`WebXR確認エラー: ${error.message}`, 'error');
-          updateStatus('ar-support-status', 'ARサポート: エラー', false);
-        });
-      } else {
-        debugLog('WebXR 未対応、AR.jsを使用', 'warning');
-        updateStatus('ar-support-status', 'ARサポート: AR.js', true);
-      }
-    }
-    
-    // デスクトップモード セットアップ
-    function setupDesktopMode() {
-      debugLog('デスクトップテストモード', 'info');
-      updateStatus('ar-support-status', 'ARサポート: テストモード', true);
-      
-      // デスクトップでは即座に配置可能
-      setTimeout(() => {
-        document.getElementById('place-warehouse-btn').disabled = false;
-        document.getElementById('place-interactive-btn').disabled = false;
-        document.getElementById('ar-status-text').textContent = 'テストモード - 配置可能';
-      }, 2000);
-    }
-    
-    // AR開始
-    function startAR() {
-      if (currentPlatform === 'ios') {
-        // iOS: model-viewerのARボタンをトリガー
-        const arButton = document.getElementById('ar-button');
-        if (arButton) {
-          arButton.click();
-          debugLog('iOS AR開始', 'info');
-        }
-      } else {
-        // Android/Desktop: A-Frame ARモード
-        const scene = document.querySelector('a-scene');
-        if (scene) {
-          scene.enterVR();
-          debugLog('A-Frame AR開始', 'info');
-        }
-      }
-      
-      document.getElementById('ar-btn-text').textContent = 'AR実行中';
-    }
-    
-    // 廃倉庫モデル配置
-    function placeWarehouseModel() {
-      if (currentPlatform === 'ios') {
-        debugLog('iOS: model-viewerで直接AR表示', 'info');
-        return;
-      }
-      
-      // Android/Desktop: A-Frameでモデル配置
-      const scene = document.querySelector('a-scene');
-      const hitTestComponent = scene.components['ar-hit-test'];
-      
-      let position = { x: 0, y: 0, z: -3 }; // デフォルト位置
-      
-      if (hitTestComponent && hitTestComponent.getCurrentPose()) {
-        const pose = hitTestComponent.getCurrentPose();
-        position = pose.transform.position;
-        debugLog('Hit Test座標を使用してモデル配置', 'success');
-      } else {
-        debugLog('デフォルト座標でモデル配置', 'info');
-      }
-      
-      const warehouseData = objectTypes.warehouse;
-      const modelId = `warehouse-${Date.now()}`;
-      
-      // 廃倉庫モデルエンティティ作成
-      const warehouseEntity = document.createElement('a-entity');
-      
-      // GLTFモデルを設定
-      warehouseEntity.setAttribute('gltf-model', 'url(./models/abandoned_warehouse_-_interior_scene.glb)');
-      warehouseEntity.setAttribute('position', `${position.x} ${position.y} ${position.z}`);
-      warehouseEntity.setAttribute('scale', `${currentModelScale} ${currentModelScale} ${currentModelScale}`);
-      warehouseEntity.setAttribute('rotation', '0 0 0');
-      warehouseEntity.setAttribute('shadow', 'cast: true; receive: true');
-      
-      // インタラクション設定
-      warehouseEntity.classList.add('interactive');
-      warehouseEntity.setAttribute('data-priority', warehouseData.priority.toString());
-      warehouseEntity.setAttribute('id', modelId);
-      
-      // ゆっくりとした回転アニメーション
-      warehouseEntity.setAttribute('animation', 
-        'property: rotation; to: 0 360 0; loop: true; dur: 45000');
-      
-      // シーンに追加
-      document.getElementById('ar-world').appendChild(warehouseEntity);
-      
-      // 配置リストに追加
-      placedModels.push({
-        id: modelId,
-        name: warehouseData.name,
-        type: 'warehouse',
-        element: warehouseEntity,
-        priority: warehouseData.priority
-      });
-      
-      // インタラクションハンドラーに登録
-      const interactionHandler = scene.components['ar-interaction-handler'];
-      if (interactionHandler) {
-        interactionHandler.registerObject(warehouseEntity, {
-          name: warehouseData.name,
-          description: warehouseData.description,
-          priority: warehouseData.priority,
-          type: 'warehouse'
-        });
-      }
-      
-      debugLog(`${warehouseData.name}配置完了: ${modelId}`, 'success');
-      updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
-      showPlacementFeedback();
-    }
-    
-    // インタラクティブオブジェクト配置
-    function placeInteractiveObject() {
-      if (currentPlatform === 'ios') {
-        debugLog('iOS: インタラクティブオブジェクトはA-Frame用機能です', 'warning');
-        return;
-      }
-      
-      const scene = document.querySelector('a-scene');
-      const hitTestComponent = scene.components['ar-hit-test'];
-      
-      let position = { x: Math.random() * 2 - 1, y: 0, z: -2 - Math.random() * 2 };
-      
-      if (hitTestComponent && hitTestComponent.getCurrentPose()) {
-        const pose = hitTestComponent.getCurrentPose();
-        position = {
-          x: pose.transform.position.x + (Math.random() * 2 - 1),
-          y: pose.transform.position.y,
-          z: pose.transform.position.z + (Math.random() * 2 - 1)
+    <script>
+        // ===== Firebase Configuration =====
+        // Replace with your Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            authDomain: "your-project.firebaseapp.com",
+            databaseURL: "https://your-project.firebaseio.com",
+            projectId: "your-project",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
         };
-        debugLog('Hit Test座標周辺にランダム配置', 'info');
-      }
-      
-      // ランダムにオブジェクトタイプを選択（廃倉庫以外）
-      const availableTypes = Object.keys(objectTypes).filter(key => key !== 'warehouse');
-      const selectedType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-      const objectData = objectTypes[selectedType];
-      
-      const objectId = `${selectedType}-${Date.now()}`;
-      
-      // 基本形状でオブジェクト作成
-      let objectEntity;
-      switch (selectedType) {
-        case 'machine':
-          objectEntity = document.createElement('a-box');
-          objectEntity.setAttribute('width', '0.8');
-          objectEntity.setAttribute('height', '1.2');
-          objectEntity.setAttribute('depth', '0.6');
-          break;
-        case 'generator':
-          objectEntity = document.createElement('a-cylinder');
-          objectEntity.setAttribute('radius', '0.5');
-          objectEntity.setAttribute('height', '1.5');
-          break;
-        case 'container':
-          objectEntity = document.createElement('a-box');
-          objectEntity.setAttribute('width', '1.5');
-          objectEntity.setAttribute('height', '1.0');
-          objectEntity.setAttribute('depth', '0.8');
-          break;
-        case 'debris':
-          objectEntity = document.createElement('a-dodecahedron');
-          objectEntity.setAttribute('radius', '0.3');
-          break;
-        default:
-          objectEntity = document.createElement('a-box');
-      }
-      
-      // 共通属性設定
-      objectEntity.setAttribute('position', `${position.x} ${position.y + 0.1} ${position.z}`);
-      objectEntity.setAttribute('color', objectData.color);
-      objectEntity.setAttribute('material', 'roughness: 0.8; metalness: 0.4');
-      objectEntity.setAttribute('shadow', 'cast: true; receive: false');
-      objectEntity.setAttribute('id', objectId);
-      
-      // インタラクション設定
-      if (objectData.interactive) {
-        objectEntity.classList.add('interactive');
-        objectEntity.setAttribute('data-priority', objectData.priority.toString());
-        
-        // ホバーアニメーション
-        objectEntity.setAttribute('animation__idle', 
-          'property: rotation; to: 0 360 0; loop: true; dur: ' + (8000 + Math.random() * 4000));
-      }
-      
-      // 配置時のアニメーション
-      objectEntity.setAttribute('animation__spawn', 
-        'property: scale; from: 0 0 0; to: 1 1 1; dur: 800; easing: easeOutBounce');
-      
-      // シーンに追加
-      document.getElementById('ar-world').appendChild(objectEntity);
-      
-      // 配置リストに追加
-      placedModels.push({
-        id: objectId,
-        name: objectData.name,
-        type: selectedType,
-        element: objectEntity,
-        priority: objectData.priority
-      });
-      
-      // インタラクションハンドラーに登録
-      if (objectData.interactive) {
-        const interactionHandler = scene.components['ar-interaction-handler'];
-        if (interactionHandler) {
-          interactionHandler.registerObject(objectEntity, {
-            name: objectData.name,
-            description: objectData.description,
-            priority: objectData.priority,
-            type: selectedType
-          });
-        }
-      }
-      
-      debugLog(`${objectData.name}配置完了: ${objectId} (優先度: ${objectData.priority})`, 'success');
-      updateStatus('model-status', `配置済み: ${placedModels.length}`, true);
-      showPlacementFeedback();
-    }
-    
-    // 配置成功フィードバック
-    function showPlacementFeedback() {
-      const instructions = document.getElementById('ar-instructions');
-      const originalText = instructions.querySelector('#instruction-text').textContent;
-      instructions.querySelector('#instruction-text').textContent = '✅ 配置完了！';
-      
-      setTimeout(() => {
-        instructions.querySelector('#instruction-text').textContent = originalText;
-      }, 2000);
-    }
-    
-    // スケール変更
-    function changeScale(scale) {
-      currentModelScale = scale;
-      debugLog(`モデルスケール変更: ${scale * 100}%`, 'info');
-      
-      if (currentPlatform === 'ios') {
-        // model-viewerのスケール調整は制限があるため、ログのみ
-        debugLog('iOS: スケール調整はAR配置時に反映されます', 'info');
-      }
-    }
-    
-    // 全モデル削除
-    function clearModels() {
-      placedModels.forEach(model => {
-        if (model.element.parentNode) {
-          model.element.remove();
-        }
-      });
-      placedModels = [];
-      debugLog('全モデルを削除', 'info');
-      updateStatus('model-status', '配置済み: 0', true);
-    }
-    
-    // カメラ確認
-    async function checkCamera() {
-      try {
-        debugLog('カメラアクセス確認中', 'info');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stream.getTracks().forEach(track => track.stop());
-        updateStatus('camera-status', 'カメラ: OK', true);
-        debugLog('カメラアクセス確認済み', 'success');
-        return true;
-      } catch (error) {
-        updateStatus('camera-status', 'カメラ: エラー', false);
-        debugLog(`カメラアクセスエラー: ${error.message}`, 'error');
-        return false;
-      }
-    }
-    
-    // スクリーンショット
-    function takeScreenshot() {
-      if (currentPlatform === 'ios') {
-        debugLog('iOS: model-viewerスクリーンショット機能制限', 'warning');
-        return;
-      }
-      
-      const scene = document.querySelector('a-scene');
-      if (!scene || !scene.canvas) {
-        debugLog('Canvasが見つかりません', 'error');
-        return;
-      }
-      
-      try {
-        const canvas = scene.canvas;
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.download = `warehouse-ar-${Date.now()}.png`;
-            link.href = url;
-            link.click();
-            URL.revokeObjectURL(url);
-            debugLog('スクリーンショット保存成功', 'success');
-          }
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // ===== App State =====
+        const appState = {
+            playerId: generatePlayerId(),
+            sessionId: null,
+            isMyTurn: false,
+            object: {
+                position: { x: 0, y: 0, z: -0.5 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: 1
+            },
+            currentTurnPlayer: null,
+            players: {}
+        };
+
+        // ===== Three.js Setup =====
+        const canvas = document.getElementById('canvas');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.01,
+            20
+        );
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        renderer.shadowMap.enabled = true;
+
+        // Reticle (floor detection indicator)
+        const reticle = new THREE.Object3D();
+        reticle.visible = false;
+        scene.add(reticle);
+
+        // Create reticle ring geometry
+        const reticleGeometry = new THREE.TorusGeometry(0.15, 0.02, 16, 32);
+        const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0x2196F3, transparent: true, opacity: 0.8 });
+        const reticleRing = new THREE.Mesh(reticleGeometry, reticleMaterial);
+        reticleRing.rotation.x = -Math.PI / 2;
+        reticle.add(reticleRing);
+
+        // Shared object (interactive cube)
+        let sharedObject = null;
+        const objectGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        const objectMaterial = new THREE.MeshPhongMaterial({
+            color: 0xFF9800,
+            emissive: 0x4A2511,
+            shininess: 100
         });
-      } catch (error) {
-        debugLog(`スクリーンショットエラー: ${error.message}`, 'error');
-      }
-    }
-    
-    // エラーハンドリング
-    window.addEventListener('error', (event) => {
-      debugLog(`JavaScript エラー: ${event.error?.message || event.message}`, 'error');
-    });
-    
-    // 初期化
-    document.addEventListener('DOMContentLoaded', () => {
-      debugLog('DOM読み込み完了', 'success');
-      
-      // プラットフォーム検出・初期化
-      initializePlatform();
-      
-      // カメラ確認
-      if (isMobile) {
-        checkCamera();
-      } else {
-        updateStatus('camera-status', 'カメラ: デスクトップ', true);
-      }
-      
-      // A-Frame確認
-      if (window.AFRAME) {
-        debugLog(`A-Frame バージョン: ${AFRAME.version}`, 'success');
-      }
-      
-      setTimeout(() => {
-        document.getElementById('loading').classList.remove('show');
-        document.getElementById('ar-status-text').textContent = 'プラットフォーム設定完了';
-      }, 2000);
-    });
-    
-    // A-Frameイベント（Android/Desktop用）
-    if (!isIOS) {
-      document.addEventListener('DOMContentLoaded', () => {
-        const scene = document.querySelector('a-scene');
-        
-        if (scene) {
-          scene.addEventListener('loaded', () => {
-            debugLog('A-Frameシーン読み込み完了', 'success');
-          });
-          
-          scene.addEventListener('enter-vr', () => {
-            debugLog('A-Frame ARモード開始', 'success');
-            document.getElementById('ar-status-text').textContent = 'ARモード アクティブ';
-            const indicator = document.getElementById('ar-status-indicator');
-            indicator.classList.add('active');
-          });
+
+        // Lighting
+        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+        scene.add(light);
+
+        const shadowLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        shadowLight.position.set(2, 5, 2);
+        shadowLight.castShadow = true;
+        scene.add(shadowLight);
+
+        // Floor plane (for shadows)
+        const shadowGeometry = new THREE.PlaneGeometry(100, 100);
+        const shadowMaterial = new THREE.ShadowMaterial({ opacity: 0.4 });
+        const shadowPlane = new THREE.Mesh(shadowGeometry, shadowMaterial);
+        shadowPlane.receiveShadow = true;
+        shadowPlane.rotation.x = -Math.PI / 2;
+        shadowPlane.position.y = -1;
+        scene.add(shadowPlane);
+
+        // WebXR Variables
+        let xrSession = null;
+        let xrRefSpace = null;
+        let hitTestSource = null;
+        let stabilized = false;
+
+        // ===== Utility Functions =====
+        function generatePlayerId() {
+            return 'player_' + Math.random().toString(36).substr(2, 9);
         }
-      });
-    }
-    
-    // タッチ・クリックでオブジェクト配置（A-Frame用）
-    if (!isIOS) {
-      document.addEventListener('click', (event) => {
-        // UIボタンのクリックは除外
-        if (event.target.closest('.btn') || event.target.closest('.debug-panel') || 
-            event.target.closest('.info-panel') || event.target.closest('.model-scale-controls') ||
-            event.target.closest('.object-manager') || event.target.closest('.touch-info-panel')) {
-          return;
+
+        function generateSessionId() {
+            return Math.random().toString(36).substr(2, 8).toUpperCase();
         }
-        
-        // インタラクティブオブジェクトのクリックの場合は配置しない
-        const target = event.target;
-        if (target.classList && target.classList.contains('interactive')) {
-          return;
+
+        function log(message) {
+            const debugLog = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.innerHTML = `[${timestamp}] ${message}<br>` + debugLog.innerHTML;
+            if (debugLog.children.length > 20) {
+                debugLog.removeChild(debugLog.lastChild);
+            }
         }
-        
-        // 配置ボタンが有効な場合のみ実行
-        const warehouseBtn = document.getElementById('place-warehouse-btn');
-        const interactiveBtn = document.getElementById('place-interactive-btn');
-        
-        if (!warehouseBtn.disabled || !interactiveBtn.disabled) {
-          // ランダムにどちらかを配置（50%の確率）
-          if (Math.random() < 0.5 && !warehouseBtn.disabled) {
-            placeWarehouseModel();
-          } else if (!interactiveBtn.disabled) {
-            placeInteractiveObject();
-          }
+
+        function updateStatus(element, text) {
+            const el = document.getElementById(element);
+            if (el) el.textContent = text;
         }
-      });
-      
-      // タッチイベントも処理
-      document.addEventListener('touchend', (event) => {
-        if (event.target.closest('.btn') || event.target.closest('.debug-panel') || 
-            event.target.closest('.info-panel') || event.target.closest('.model-scale-controls') ||
-            event.target.closest('.object-manager') || event.target.closest('.touch-info-panel')) {
-          return;
+
+        // ===== Firebase Functions =====
+        async function initializeSession(sessionId) {
+            appState.sessionId = sessionId;
+            const sessionRef = db.ref(`sessions/${sessionId}`);
+
+            // Create or update session
+            await sessionRef.set({
+                created: firebase.database.ServerValue.TIMESTAMP,
+                players: {
+                    [appState.playerId]: {
+                        id: appState.playerId,
+                        joined: firebase.database.ServerValue.TIMESTAMP
+                    }
+                }
+            }, { merge: true });
+
+            // Listen for turn changes
+            db.ref(`sessions/${sessionId}/turn`).on('value', (snapshot) => {
+                const currentTurn = snapshot.val();
+                appState.currentTurnPlayer = currentTurn;
+                appState.isMyTurn = currentTurn === appState.playerId;
+                updateTurnDisplay();
+                log(`Turn: ${currentTurn === appState.playerId ? '✓ YOUR TURN' : 'Waiting for ' + (currentTurn ? currentTurn.slice(0, 8) : 'start')}`);
+            });
+
+            // Listen for object state
+            db.ref(`sessions/${sessionId}/object`).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    appState.object = data;
+                    updateSharedObject();
+                    updateObjectInfo();
+                }
+            });
+
+            updateStatus('session-status', `Connected (ID: ${sessionId.slice(0, 4)}...)`);
+            updateStatus('your-id', appState.playerId.slice(0, 8) + '...');
+            document.getElementById('turn-display').style.display = 'block';
+            document.getElementById('session-input').style.display = 'none';
+
+            // Auto-set first turn to first player
+            const turnRef = db.ref(`sessions/${sessionId}/turn`);
+            turnRef.transaction((current) => {
+                return current || appState.playerId;
+            });
         }
-        
-        event.preventDefault();
-        
-        // インタラクティブオブジェクトのタッチの場合は配置しない
-        const target = event.target;
-        if (target.classList && target.classList.contains('interactive')) {
-          return;
+
+        async function updateObjectState(newState) {
+            if (!appState.sessionId || !appState.isMyTurn) {
+                log('❌ Not your turn!');
+                return;
+            }
+
+            await db.ref(`sessions/${appState.sessionId}/object`).set(newState);
+
+            // Pass turn to next player
+            const players = Object.keys(appState.players).filter(p => p !== appState.playerId);
+            if (players.length > 0) {
+                const nextPlayer = players[0];
+                await db.ref(`sessions/${appState.sessionId}/turn`).set(nextPlayer);
+            }
         }
-        
-        const warehouseBtn = document.getElementById('place-warehouse-btn');
-        const interactiveBtn = document.getElementById('place-interactive-btn');
-        
-        if (!warehouseBtn.disabled || !interactiveBtn.disabled) {
-          if (Math.random() < 0.5 && !warehouseBtn.disabled) {
-            placeWarehouseModel();
-          } else if (!interactiveBtn.disabled) {
-            placeInteractiveObject();
-          }
+
+        // ===== WebXR Hit Test =====
+        async function startAR() {
+            try {
+                const xrSupported = await navigator.xr?.isSessionSupported('immersive-ar');
+                if (!xrSupported) {
+                    updateStatus('status-ar', '❌ Not supported');
+                    log('AR not supported on this device');
+                    return;
+                }
+
+                xrSession = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test', 'dom-overlay'],
+                    domOverlay: { root: document.body }
+                });
+
+                xrRefSpace = await xrSession.requestReferenceSpace('local');
+                const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+
+                hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+                updateStatus('status-ar', '✓ Active');
+                log('AR session started');
+
+                // Setup tap listener
+                xrSession.addEventListener('select', onARTap);
+
+                // Start animation loop
+                xrSession.requestAnimationFrame(onXRFrame);
+
+            } catch (err) {
+                updateStatus('status-ar', '❌ Error: ' + err.message);
+                log('AR init error: ' + err.message);
+            }
         }
-      });
-    }
-    
-    // 選択されたオブジェクトの追跡
-    document.addEventListener('DOMContentLoaded', () => {
-      const scene = document.querySelector('a-scene');
-      if (scene) {
-        // インタラクションハンドラーのイベント監視
-        scene.addEventListener('object-selected', (event) => {
-          selectedObjectGlobal = event.detail.element;
+
+        function onXRFrame(time, frame) {
+            if (!hitTestSource || !xrRefSpace) {
+                xrSession.requestAnimationFrame(onXRFrame);
+                return;
+            }
+
+            const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+            if (!stabilized && hitTestResults.length > 0) {
+                stabilized = true;
+                updateStatus('status-floor', '✓ Found');
+                log('Floor detected');
+            }
+
+            if (hitTestResults.length > 0) {
+                const hitPose = hitTestResults[0].getPose(xrRefSpace);
+                reticle.visible = true;
+                reticle.position.set(
+                    hitPose.transform.position.x,
+                    hitPose.transform.position.y,
+                    hitPose.transform.position.z
+                );
+                reticle.updateMatrixWorld(true);
+            } else {
+                reticle.visible = false;
+            }
+
+            // Render
+            const pose = frame.getViewerPose(xrRefSpace);
+            if (pose) {
+                const view = pose.views[0];
+                const viewport = xrSession.renderState.baseLayer.getViewport(view);
+                renderer.setSize(viewport.width, viewport.height);
+                camera.matrix.fromArray(view.transform.matrix);
+                camera.projectionMatrix.fromArray(view.projectionMatrix);
+                camera.updateMatrixWorld(true);
+
+                renderer.render(scene, camera);
+            }
+
+            xrSession.requestAnimationFrame(onXRFrame);
+        }
+
+        function onARTap() {
+            if (!appState.isMyTurn) {
+                log('❌ Wait for your turn');
+                return;
+            }
+
+            if (reticle.visible) {
+                const newState = {
+                    position: {
+                        x: reticle.position.x,
+                        y: reticle.position.y,
+                        z: reticle.position.z
+                    },
+                    rotation: { x: 0, y: Math.random() * Math.PI * 2, z: 0 },
+                    scale: 1,
+                    lastModifiedBy: appState.playerId,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                };
+                updateObjectState(newState);
+                log('✓ Object updated and turn passed');
+            }
+        }
+
+        // ===== 3D Object Update =====
+        function updateSharedObject() {
+            if (!sharedObject) {
+                sharedObject = new THREE.Mesh(objectGeometry, objectMaterial);
+                sharedObject.castShadow = true;
+                sharedObject.receiveShadow = true;
+                scene.add(sharedObject);
+            }
+
+            sharedObject.position.set(
+                appState.object.position.x,
+                appState.object.position.y,
+                appState.object.position.z
+            );
+
+            if (appState.object.rotation) {
+                sharedObject.rotation.order = 'YXZ';
+                sharedObject.rotation.set(
+                    appState.object.rotation.x || 0,
+                    appState.object.rotation.y || 0,
+                    appState.object.rotation.z || 0
+                );
+            }
+
+            sharedObject.scale.setScalar(appState.object.scale || 1);
+            sharedObject.updateMatrixWorld(true);
+        }
+
+        function updateObjectInfo() {
+            const pos = appState.object.position;
+            const info = `X: ${pos.x.toFixed(2)} Y: ${pos.y.toFixed(2)} Z: ${pos.z.toFixed(2)}`;
+            document.getElementById('obj-pos').textContent = info;
+        }
+
+        function updateTurnDisplay() {
+            const turnStatus = document.getElementById('turn-status');
+            const turnPlayer = document.getElementById('turn-player');
+            const hint = document.getElementById('interaction-hint');
+
+            if (appState.isMyTurn) {
+                turnStatus.className = 'status-item turn-active';
+                turnPlayer.textContent = '🟢 YOUR TURN';
+                hint.textContent = 'Tap the screen to move the object!';
+            } else {
+                turnStatus.className = 'status-item turn-waiting';
+                const playerName = appState.currentTurnPlayer ? appState.currentTurnPlayer.slice(0, 8) : 'unknown';
+                turnPlayer.textContent = '🔴 ' + playerName;
+                hint.textContent = 'Waiting for your turn...';
+            }
+        }
+
+        // ===== Session Management =====
+        document.getElementById('btn-join').addEventListener('click', async () => {
+            const code = document.getElementById('session-code').value.trim().toUpperCase();
+            if (!code) {
+                alert('Enter a session code');
+                return;
+            }
+            await initializeSession(code);
         });
-      }
-    });
-  </script>
+
+        document.getElementById('btn-create').addEventListener('click', async () => {
+            const code = generateSessionId();
+            document.getElementById('session-code').value = code;
+            await initializeSession(code);
+        });
+
+        // ===== Initialize =====
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        log('App initialized. Configure Firebase and click Create/Join.');
+        updateStatus('your-id', appState.playerId.slice(0, 8) + '...');
+    </script>
 </body>
 </html>

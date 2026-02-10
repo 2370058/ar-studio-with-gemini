@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Model Viewer Test</title>
+    <title>Model Viewer AR Test</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     <style>
         body {
@@ -16,6 +16,13 @@
             text-align: center;
             color: #333;
         }
+        .info {
+            background: #fff;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
         model-viewer {
             width: 100%;
             height: 500px;
@@ -23,18 +30,36 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
+        model-viewer::part(default-ar-button) {
+            background-color: #4285f4;
+            color: white;
+            font-size: 18px;
+            padding: 12px 24px;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
-    <h1>Model Viewer テスト</h1>
+    <h1>Model Viewer AR テスト</h1>
+
+    <div class="info">
+        <p><strong>📱 AR表示方法:</strong></p>
+        <p>1. 画面下の「ARで表示」ボタンをタップ</p>
+        <p>2. カメラが起動したら、床や地面にモデルを配置</p>
+        <p>3. デバイスのスクリーンショット機能で撮影できます</p>
+    </div>
 
     <model-viewer
         src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
         alt="宇宙飛行士の3Dモデル"
+        ar
+        ar-modes="scene-viewer webxr quick-look"
         camera-controls
         touch-action="pan-y"
         auto-rotate
-        shadow-intensity="1">
+        shadow-intensity="1"
+        environment-image="neutral"
+        exposure="1">
     </model-viewer>
 
 </body>
